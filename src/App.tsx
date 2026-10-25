@@ -113,9 +113,9 @@ function Login({ checking, connectionError, onRetry, onLogin }: {
         계정으로 로그인해주세요.
       </p>
       {checking && <p className="hint" role="status">서버 연결을 확인하고 있습니다…</p>}
-      {connectionError && (
+      {(error || connectionError) && (
         <div className="inline-error" role="alert">
-          <p>{connectionError}</p>
+          <p>{error || connectionError}</p>
           <button className="btn" type="button" onClick={() => {
             setError("");
             onRetry();
@@ -168,11 +168,6 @@ function Login({ checking, connectionError, onRetry, onLogin }: {
               autoComplete="current-password"
             />
           </label>
-          {error && (
-            <p className="inline-error" role="alert">
-              {error}
-            </p>
-          )}
           <button className="btn primary" type="submit">
             {busy ? "로그인 중…" : "로그인"}
           </button>
