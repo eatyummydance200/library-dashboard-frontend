@@ -7,7 +7,6 @@ import {
   Field,
   Form,
   Icon,
-  Loading,
   Modal,
   NoticeContext,
   value,
@@ -47,7 +46,7 @@ export default function App() {
     setLoading(true);
     setError("");
     try {
-      const session = await api<Session>("/me");
+      const session = await api<Session>("/me", "GET", undefined, AbortSignal.timeout(10000));
       setCsrf(session.csrf);
       setUser(session.user);
     } catch (error) {
@@ -74,14 +73,13 @@ export default function App() {
   }, [user]);
   return (
     <NoticeContext.Provider value={toast}>
-      {loading ? (
-        <Loading retry={load} />
-      ) : error ? (
-        <Loading error={error} retry={load} />
-      ) : user ? (
+      {user ? (
         <Workspace user={user} onLogout={() => setUser(null)} />
       ) : (
         <Login
+          checking={loading}
+          connectionError={error}
+          onRetry={load}
           onLogin={(session) => {
             setCsrf(session.csrf);
             setUser(session.user);
@@ -96,7 +94,12 @@ export default function App() {
     </NoticeContext.Provider>
   );
 }
-function Login({ onLogin }: { onLogin: (session: Session) => void }) {
+function Login({ checking, connectionError, onRetry, onLogin }: {
+  checking: boolean;
+  connectionError: string;
+  onRetry: () => void;
+  onLogin: (session: Session) => void;
+}) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const lock = useRef(false);
@@ -109,16 +112,26 @@ function Login({ onLogin }: { onLogin: (session: Session) => void }) {
         <br />
         계정으로 로그인해주세요.
       </p>
+      {checking && <p className="hint" role="status">서버 연결을 확인하고 있습니다…</p>}
+      {connectionError && (
+        <div className="inline-error" role="alert">
+          <p>{connectionError}</p>
+          <button className="btn" type="button" onClick={() => {
+            setError("");
+            onRetry();
+          }}>다시 시도</button>
+        </div>
+      )}
       <form
         onSubmit={async (event) => {
           event.preventDefault();
-          if (lock.current) return;
+          if (lock.current || checking) return;
           const data = new FormData(event.currentTarget);
           lock.current = true;
           setBusy(true);
           setError("");
           try {
-            const token = await api<{ csrf: string }>("/auth/csrf");
+            const token = await api<{ csrf: string }>("/auth/csrf", "GET", undefined, AbortSignal.timeout(10000));
             setCsrf(token.csrf);
             const session = await api<{ csrf: string }>("/auth/login", "POST", {
               username: value(data, "username"),
@@ -134,7 +147,7 @@ function Login({ onLogin }: { onLogin: (session: Session) => void }) {
           }
         }}
       >
-        <fieldset disabled={busy}>
+        <fieldset disabled={busy || checking}>
           <label>
             아이디
             <input

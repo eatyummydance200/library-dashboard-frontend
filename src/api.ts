@@ -35,6 +35,7 @@ export function api<T>(
     const headers: Record<string, string> = { Accept: "application/json" };
     if (body !== undefined) headers["Content-Type"] = "application/json";
     if (method !== "GET") headers["X-CSRF-Token"] = csrf;
+    const connectionError = "서버에 연결할 수 없습니다. 잠시 후 다시 시도해주세요.";
     const response = await fetch(`${base}/api${path}`, {
       method,
       headers,
@@ -42,6 +43,9 @@ export function api<T>(
       credentials: "same-origin",
       cache: "no-store",
       signal,
+    }).catch((error) => {
+      if (signal?.aborted && signal.reason?.name !== "TimeoutError") throw error;
+      throw new ApiError(connectionError, 0);
     });
     const data = await response
       .json()
@@ -55,7 +59,11 @@ export function api<T>(
         window.dispatchEvent(new Event("session-expired"));
       }
       throw new ApiError(
-        data.error || "요청을 처리하지 못했습니다.",
+        response.status >= 500
+          ? connectionError
+          : typeof data?.error === "string" && data.error
+            ? data.error
+            : "요청을 처리하지 못했습니다.",
         response.status,
       );
     }
