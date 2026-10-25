@@ -1,0 +1,8 @@
+node_modules/
+dist/
+.vercel/
+.env*
+!.env.example
+static/fonts/*.woff2
+public/OFL.txt
+*.log
