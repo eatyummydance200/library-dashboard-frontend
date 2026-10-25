@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { api, ApiError, message, setCsrf, useResource } from "./api";
+import { api, message, setCsrf, useResource } from "./api";
 import type { Issue, User } from "./types";
 import logo from "../static/inu-logo.png";
 import {
@@ -33,8 +33,7 @@ interface Session {
 }
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const sessionCheck = useRef<AbortController | null>(null);
   const [notice, setNotice] = useState("");
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   function toast(text: string) {
@@ -42,28 +41,26 @@ export default function App() {
     setNotice(text);
     timer.current = setTimeout(() => setNotice(""), 3500);
   }
-  async function load() {
-    setLoading(true);
-    setError("");
-    try {
-      const session = await api<Session>("/me", "GET", undefined, AbortSignal.timeout(10000));
-      setCsrf(session.csrf);
-      setUser(session.user);
-    } catch (error) {
-      if (!(error instanceof ApiError && error.status === 401))
-        setError(message(error));
-    } finally {
-      setLoading(false);
-    }
-  }
   useEffect(() => {
-    void load();
+    const controller = new AbortController();
+    sessionCheck.current = controller;
+    void api<Session>("/me", "GET", undefined,
+      AbortSignal.any([controller.signal, AbortSignal.timeout(10000)]))
+      .then((session) => {
+        if (controller.signal.aborted) return;
+        setCsrf(session.csrf);
+        setUser(session.user);
+      })
+      // Session restoration is silent; login attempts show their own errors.
+      .catch(() => {});
     const expired = () => {
+      controller.abort();
       setUser(null);
       toast("세션이 만료되었습니다. 다시 로그인해주세요.");
     };
     window.addEventListener("session-expired", expired);
     return () => {
+      controller.abort();
       window.removeEventListener("session-expired", expired);
       clearTimeout(timer.current);
     };
@@ -77,9 +74,7 @@ export default function App() {
         <Workspace user={user} onLogout={() => setUser(null)} />
       ) : (
         <Login
-          checking={loading}
-          connectionError={error}
-          onRetry={load}
+          onLoginStart={() => sessionCheck.current?.abort()}
           onLogin={(session) => {
             setCsrf(session.csrf);
             setUser(session.user);
@@ -94,10 +89,8 @@ export default function App() {
     </NoticeContext.Provider>
   );
 }
-function Login({ checking, connectionError, onRetry, onLogin }: {
-  checking: boolean;
-  connectionError: string;
-  onRetry: () => void;
+function Login({ onLoginStart, onLogin }: {
+  onLoginStart: () => void;
   onLogin: (session: Session) => void;
 }) {
   const [busy, setBusy] = useState(false);
@@ -112,20 +105,11 @@ function Login({ checking, connectionError, onRetry, onLogin }: {
         <br />
         계정으로 로그인해주세요.
       </p>
-      {checking && <p className="hint" role="status">서버 연결을 확인하고 있습니다…</p>}
-      {(error || connectionError) && (
-        <div className="inline-error" role="alert">
-          <p>{error || connectionError}</p>
-          <button className="btn" type="button" onClick={() => {
-            setError("");
-            onRetry();
-          }}>다시 시도</button>
-        </div>
-      )}
       <form
         onSubmit={async (event) => {
           event.preventDefault();
-          if (lock.current || checking) return;
+          if (lock.current) return;
+          onLoginStart();
           const data = new FormData(event.currentTarget);
           lock.current = true;
           setBusy(true);
@@ -147,7 +131,7 @@ function Login({ checking, connectionError, onRetry, onLogin }: {
           }
         }}
       >
-        <fieldset disabled={busy || checking}>
+        <fieldset disabled={busy}>
           <label>
             아이디
             <input
@@ -172,6 +156,7 @@ function Login({ checking, connectionError, onRetry, onLogin }: {
             {busy ? "로그인 중…" : "로그인"}
           </button>
         </fieldset>
+        {error && <p className="inline-error" role="alert">{error}</p>}
       </form>
     </main>
   );

@@ -13,8 +13,7 @@ try {
   const html = renderToStaticMarkup(createElement(App));
   assert.match(html, /name="username"/);
   assert.match(html, /name="password"/);
-  assert.match(html, /서버 연결을 확인하고 있습니다/);
-  assert.doesNotMatch(html, /불러오는 중/);
+  assert.doesNotMatch(html, /서버 연결|다시 시도|role="alert"|disabled|불러오는 중/);
 
   const { api, ApiError } = await server.ssrLoadModule("/src/api.ts");
   for (const body of ["Bad Gateway", JSON.stringify({ error: { code: "DNS_HOSTNAME_NOT_FOUND" } })]) {
