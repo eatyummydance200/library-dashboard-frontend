@@ -31,7 +31,7 @@ npm ci
 npm run dev
 ```
 
-Vite가 안내하는 주소의 `/library-dashboard/`를 연다. 개발 프록시는 `/library-dashboard/api/*`만 `http://127.0.0.1:8090`으로 전달한다. 백엔드 포트를 바꾸면 `vite.config.ts`의 프록시 주소도 맞춘다.
+Vite가 안내하는 주소의 `/login`을 연다. 루트 주소나 `/library-dashboard`로 접속해도 로그인 전에는 `/login`으로 이동하며, 로그인 성공 또는 기존 세션 복원 후에는 `/library-dashboard`로 이동한다. 로그아웃·세션 만료 후에는 `/login`으로 돌아온다. 개발 프록시는 `/library-dashboard/api/*`만 `http://127.0.0.1:8090`으로 전달한다. 백엔드 포트를 바꾸면 `vite.config.ts`의 프록시 주소도 맞춘다.
 
 ```bash
 npm run build
@@ -53,7 +53,7 @@ npm run preview
 | Install / Build | `npm ci` / `npm run build` |
 | Output | `dist` |
 
-상위 폴더의 파일을 포함하는 옵션은 필요 없다. `vercel.json`은 루트에서 화면 경로로 이동하고 `/library-dashboard/assets/*`를 번들 자산으로, 화면 경로를 `index.html`로 연결한다.
+상위 폴더의 파일을 포함하는 옵션은 필요 없다. `vercel.json`은 루트에서 `/login`으로 이동하고 `/login`과 `/library-dashboard/*` 화면 경로를 `index.html`로 연결한다. 번들 자산은 `/assets/*`를 사용하며 기존 `/library-dashboard/assets/*` 경로도 유지한다.
 
 `/library-dashboard/api/*`는 `https://eatyummydance200.tail72d30b.ts.net/library-dashboard/api/*`로 전달한다. API 응답은 캐시하지 않으며 브라우저는 프론트 출처의 HttpOnly·Secure·SameSite 세션 쿠키와 CSRF 헤더를 사용한다. 별도 CORS 허용은 필요 없다. API 서버 주소가 바뀌면 `vercel.json`의 프록시 대상도 갱신한다.
 

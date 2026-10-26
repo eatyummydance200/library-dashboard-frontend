@@ -67,6 +67,10 @@ export default function App() {
   }, []);
   useEffect(() => {
     document.body.classList.toggle("auth-page", !user);
+    const path = user ? "/library-dashboard" : "/login";
+    if (window.location.pathname !== path) {
+      window.history.replaceState(null, "", path);
+    }
   }, [user]);
   return (
     <NoticeContext.Provider value={toast}>

@@ -6,11 +6,15 @@
   "redirects": [
     {
       "source": "/",
-      "destination": "/library-dashboard",
+      "destination": "/login",
       "permanent": false
     }
   ],
   "rewrites": [
+    {
+      "source": "/login",
+      "destination": "/index.html"
+    },
     {
       "source": "/library-dashboard/api/:path*",
       "destination": "https://homeserver.tail72d30b.ts.net/library-dashboard/api/:path*"
