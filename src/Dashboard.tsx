@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { api, useResource } from "./api";
 import type { Duty, Issue, Staff, Status, Teacher, User } from "./types";
 import { dateTime, koreaParts, today } from "./dates";
-import { IssueEditor, IssueList } from "./Issues";
+import { IssueEditor, TodayIssues } from "./Issues";
 import {
   Field,
   Form,
@@ -169,7 +169,7 @@ export default function Dashboard({
             <button className="btn primary" onClick={() => setAddingIssue(true)}>＋ 새 이슈</button>
           </div>
         </div>
-        <IssueList resource={dailyIssues} user={user} filter="all" groupByCategory onChanged={issues.refresh} />
+        <TodayIssues resource={dailyIssues} user={user} onChanged={issues.refresh} />
       </section>
       {addingIssue && (
         <IssueEditor

@@ -87,6 +87,31 @@ export default function Issues({ resource, user }: { resource: IssuesResource; u
     </section>
   );
 }
+export function TodayIssues({ resource, user, onChanged }: {
+  resource: IssuesResource;
+  user: User;
+  onChanged: () => Promise<void>;
+}) {
+  if (!resource.data) return <Loading error={resource.error} retry={resource.refresh} />;
+  const open = resource.data.filter((issue) => !issue.done).length;
+  const done = resource.data.length - open;
+  const list = (filter: string) => (
+    <IssueList resource={{ ...resource, error: undefined }} user={user} filter={filter} showDate={false} onChanged={onChanged} />
+  );
+  return (
+    <div className="today-issues">
+      <ResourceError error={resource.error} retry={resource.refresh} />
+      <h3 className="today-issues-heading">진행 중 <span>{open}</span></h3>
+      {open ? list("open") : <p className="today-issues-empty">{done ? "오늘의 이슈를 모두 완료했어요." : "오늘 등록된 이슈가 없습니다."}</p>}
+      {done > 0 && (
+        <section className="today-issues-done" aria-label="완료된 이슈">
+          <h3 className="today-issues-heading">완료 <span>{done}</span></h3>
+          {list("done")}
+        </section>
+      )}
+    </div>
+  );
+}
 export function IssueList({
   resource,
   filter,
@@ -96,7 +121,7 @@ export function IssueList({
   onSelect,
   onApply,
   titlesOnly = false,
-  groupByCategory = false,
+  showDate = true,
 }: {
   resource: IssuesResource;
   filter: string;
@@ -106,34 +131,25 @@ export function IssueList({
   onSelect?: (issue: Issue) => void;
   onApply?: (issue: Issue) => void;
   titlesOnly?: boolean;
-  groupByCategory?: boolean;
+  showDate?: boolean;
 }) {
   if (!resource.data)
     return <Loading error={resource.error} retry={resource.refresh} />;
   const visible = resource.data.filter(
     (issue) => filter === "all" || (filter === "done") === !!issue.done,
   );
-  const groups = groupByCategory
-    ? [...new Set(visible.map((issue) => issue.category))].map((category) => ({
-        category,
-        issues: visible.filter((issue) => issue.category === category),
-      }))
-    : [{ category: "", issues: visible }];
   return (
     <>
       <ResourceError error={resource.error} retry={resource.refresh} />
-      <div className={groupByCategory ? "issue-list issue-groups" : compact ? "" : "issue-list"}>
-        {groups.map((group) => (
-          <div key={group.category} className={groupByCategory ? "issue-group" : undefined}>
-            {groupByCategory && <h3 className="issue-group-heading">{group.category}<span>{group.issues.length}</span></h3>}
-        {group.issues.map((issue) => {
+      <div className={compact ? "" : "issue-list"}>
+        {visible.map((issue) => {
           const content = (
             <IssueContent
               issue={issue}
               user={user}
               showTitle={!titlesOnly}
-              showCategory={!compact && !groupByCategory}
-              showDate={!groupByCategory}
+              showCategory={!compact}
+              showDate={showDate}
               onSelect={onSelect}
               onApply={onApply}
               onChanged={async () => {
@@ -153,8 +169,6 @@ export function IssueList({
             </article>
           );
         })}
-          </div>
-        ))}
         {!visible.length && (
           <p className="shift-issue-empty">해당하는 이슈가 없습니다.</p>
         )}
