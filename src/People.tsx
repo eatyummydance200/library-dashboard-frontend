@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { api, base, useResource } from "./api";
-import type { Account, Staff, Teacher, User } from "./types";
+import { api, useResource } from "./api";
+import type { Staff, Teacher, User } from "./types";
 import {
   Action,
   Field,
@@ -9,15 +9,13 @@ import {
   Loading,
   Modal,
   ResourceError,
-  numeric,
   useNotice,
   value,
 } from "./ui";
 
 type Editor =
   | { kind: "staff"; person?: Staff }
-  | { kind: "teacher"; person?: Teacher }
-  | { kind: "user" };
+  | { kind: "teacher"; person?: Teacher };
 export default function People({ user }: { user: User }) {
   const staff = useResource<Staff[]>("/staff");
   const teachers = useResource<Teacher[]>("/teachers");
@@ -187,10 +185,6 @@ export default function People({ user }: { user: User }) {
         )}
       </section>
       </div>
-      {admin && staff.data && <Accounts user={user} staff={staff.data} />}
-      <p className="people-note">
-        근무자를 비활성화해도 과거 근무 기록은 보존됩니다.
-      </p>
       {editor?.kind === "staff" && (
         <Modal
           title={editor.person ? "근무자 정보 수정" : "근무자 추가"}
@@ -302,175 +296,5 @@ export default function People({ user }: { user: User }) {
         </Modal>
       )}
     </section>
-  );
-}
-function Accounts({ user, staff }: { user: User; staff: Staff[] }) {
-  const accounts = useResource<Account[]>("/users");
-  const [adding, setAdding] = useState(false);
-  const notice = useNotice();
-  return (
-    <details className="card account-card">
-      <summary>계정 관리</summary>
-      <div className="card-head">
-        <p className="hint">
-          근무자 계정을 본인 이름에 연결하면 담당 과월호만 체크할 수 있습니다.
-        </p>
-        <button className="btn" onClick={() => setAdding(true)}>
-          계정 추가
-        </button>
-      </div>
-      <a className="btn" href={`${base}/api/backup`} download>
-        DB 백업 다운로드
-      </a>
-      {accounts.data ? (
-        <>
-          <ResourceError error={accounts.error} retry={accounts.refresh} />
-          {accounts.data.map((account) => (
-            <div className="user-row" key={account.id}>
-              <strong>{account.username}</strong>
-              <span>
-                {account.role === "admin" ? "관리자" : "근무자"} ·{" "}
-                {account.active ? "사용 중" : "비활성"}
-              </span>
-              {account.role === "worker" && (
-                <AccountLink
-                  account={account}
-                  staff={staff}
-                  onSaved={accounts.refresh}
-                />
-              )}
-              {account.id === user.id ? (
-                <small>내 계정</small>
-              ) : (
-                <Action
-                  run={async () => {
-                    if (
-                      !confirm(
-                        `${account.username} 계정을 ${account.active ? "비활성화" : "활성화"}할까요?`,
-                      )
-                    )
-                      return;
-                    await api(`/users/${account.id}`, "PATCH", {
-                      active: !account.active,
-                    });
-                    await accounts.refresh();
-                    notice("계정 상태를 변경했어요.");
-                  }}
-                >
-                  {account.active ? "비활성화" : "활성화"}
-                </Action>
-              )}
-            </div>
-          ))}
-        </>
-      ) : (
-        <Loading error={accounts.error} retry={accounts.refresh} />
-      )}
-      {adding && (
-        <Modal title="계정 추가" onClose={() => setAdding(false)}>
-          <Form
-            onClose={() => setAdding(false)}
-            onSave={async (data) => {
-              await api("/users", "POST", {
-                username: value(data, "username"),
-                password: value(data, "password"),
-                role: value(data, "role"),
-                staff_id: numeric(data, "staff_id") || null,
-              });
-              setAdding(false);
-              await accounts.refresh();
-              notice("계정을 추가했어요.");
-            }}
-          >
-            <Field label="아이디">
-              <input
-                name="username"
-                required
-                pattern="[A-Za-z0-9_.-]{2,32}"
-                maxLength={32}
-                autoComplete="off"
-              />
-            </Field>
-            <Field label="초기 비밀번호 (10자 이상)">
-              <input
-                name="password"
-                type="password"
-                minLength={10}
-                maxLength={128}
-                autoComplete="new-password"
-                required
-              />
-            </Field>
-            <Field label="권한">
-              <select name="role">
-                <option value="worker">
-                  근무자: 조회·이슈 작성·본인 과월호 체크
-                </option>
-                <option value="admin">관리자: 시간표·인적정보·계정 수정</option>
-              </select>
-            </Field>
-            <Field label="연결 근무자">
-              <select name="staff_id">
-                <option value="">미연결</option>
-                {staff.map((person) => (
-                  <option key={person.id} value={person.id}>
-                    {person.name}
-                    {!person.active && " (비활성)"}
-                  </option>
-                ))}
-              </select>
-            </Field>
-          </Form>
-        </Modal>
-      )}
-    </details>
-  );
-}
-function AccountLink({
-  account,
-  staff,
-  onSaved,
-}: {
-  account: Account;
-  staff: Staff[];
-  onSaved: () => Promise<void>;
-}) {
-  const [busy, setBusy] = useState(false);
-  const notice = useNotice();
-  return (
-    <label className="account-link">
-      연결 근무자
-      <select
-        className="select"
-        aria-label={`${account.username} 연결 근무자`}
-        value={account.staff_id ?? ""}
-        disabled={busy}
-        onChange={async (event) => {
-          const id = Number(event.target.value) || null;
-          setBusy(true);
-          try {
-            await api(`/users/${account.id}`, "PATCH", { staff_id: id });
-            await onSaved();
-            notice(
-              "근무자 연결을 저장했습니다. 해당 계정은 다시 로그인해주세요.",
-            );
-          } catch (error) {
-            notice(
-              error instanceof Error ? error.message : "저장하지 못했습니다.",
-            );
-          } finally {
-            setBusy(false);
-          }
-        }}
-      >
-        <option value="">미연결</option>
-        {staff.map((person) => (
-          <option key={person.id} value={person.id}>
-            {person.name}
-            {!person.active && " (비활성)"}
-          </option>
-        ))}
-      </select>
-    </label>
   );
 }
