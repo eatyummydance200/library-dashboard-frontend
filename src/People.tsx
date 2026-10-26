@@ -5,6 +5,7 @@ import {
   Action,
   Field,
   Form,
+  Icon,
   Loading,
   Modal,
   ResourceError,
@@ -25,6 +26,7 @@ export default function People({ user }: { user: User }) {
   const notice = useNotice();
   return (
     <section className="view" aria-label="인적관리">
+      <div className="people-layout">
       <section className="card wide-card">
         <div className="card-head">
           <h2>
@@ -56,18 +58,28 @@ export default function People({ user }: { user: User }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {staff.data.map((person, index) => (
+                  {staff.data.map((person) => (
                     <tr key={person.id}>
                       <td>
                         <div className="staff-name">
-                          <span className={`avatar av-${index % 7}`}>
-                            {person.name.slice(0, 1)}
-                          </span>
                           {person.name}
                           {!person.active && <small>비활성</small>}
                         </div>
                       </td>
-                      <td>{person.phone || "미등록"}</td>
+                      <td>
+                        <span className="contact-copy">
+                          {person.phone || "미등록"}
+                          {person.phone && (
+                            <Action className="copy-contact" run={async () => {
+                              await navigator.clipboard.writeText(person.phone);
+                              notice("연락처를 복사했어요.");
+                            }}>
+                              <Icon name="copy" />
+                              <span className="sr-only">{person.name} 연락처 복사</span>
+                            </Action>
+                          )}
+                        </span>
+                      </td>
                       <td>연속간행물실</td>
                       <td>
                         {admin ? (
@@ -130,7 +142,20 @@ export default function People({ user }: { user: User }) {
                       <td>{person.name}</td>
                       <td>{person.position || "미등록"}</td>
                       <td>{person.extension || "미등록"}</td>
-                      <td>{person.phone || "미등록"}</td>
+                      <td>
+                        <span className="contact-copy">
+                          {person.phone || "미등록"}
+                          {person.phone && (
+                            <Action className="copy-contact" run={async () => {
+                              await navigator.clipboard.writeText(person.phone);
+                              notice("연락처를 복사했어요.");
+                            }}>
+                              <Icon name="copy" />
+                              <span className="sr-only">{person.name} 휴대폰 번호 복사</span>
+                            </Action>
+                          )}
+                        </span>
+                      </td>
                       <td>{person.location || "미등록"}</td>
                       <td>
                         {admin ? (
@@ -161,6 +186,7 @@ export default function People({ user }: { user: User }) {
           <Loading error={teachers.error} retry={teachers.refresh} />
         )}
       </section>
+      </div>
       {admin && staff.data && <Accounts user={user} staff={staff.data} />}
       <p className="people-note">
         근무자를 비활성화해도 과거 근무 기록은 보존됩니다.

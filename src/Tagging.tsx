@@ -57,10 +57,7 @@ export default function Tagging({ user }: { user: User }) {
     <section id="tagging" className="view" aria-label="태깅">
       <section className="card tagging-status-card">
         <div className="card-head">
-          <h2>이번 달 태깅 현황</h2>
-          <span className="hint">
-            {currentYear}년 {month}월 · 재직 근무자 기준
-          </span>
+          <h2>{month}월 태깅 현황</h2>
         </div>
         {summary.data ? (
           <>
@@ -76,7 +73,7 @@ export default function Tagging({ user }: { user: User }) {
               <progress
                 max={active.length || 1}
                 value={done}
-                aria-label="이번 달 태깅 진행률"
+                aria-label={`${month}월 태깅 진행률`}
               >
                 {percent}%
               </progress>
@@ -119,13 +116,6 @@ export default function Tagging({ user }: { user: User }) {
               onClick={() => setYear(year + 1)}
             >
               ›
-            </button>
-            <button
-              className="btn"
-              disabled={!!pending.length}
-              onClick={() => setYear(currentYear)}
-            >
-              올해
             </button>
           </div>
         </div>

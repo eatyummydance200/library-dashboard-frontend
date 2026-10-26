@@ -33,6 +33,10 @@ export function shortDay(value: string) {
   const [, month, day] = value.split("-");
   return `${Number(month)}.${day}`;
 }
+export function weekLabel(value: string) {
+  const [, month, day] = monday(value).split("-");
+  return `${Number(month)}월 ${Math.ceil(Number(day) / 7)}째주`;
+}
 export function time(minutes: number) {
   return `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
 }

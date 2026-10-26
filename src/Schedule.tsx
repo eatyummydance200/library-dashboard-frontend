@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import { api, useResource } from "./api";
-import type { Issue, Shift, User, Week } from "./types";
+import type { Issue, OriginalWeek, Shift, User, Week, WeeklyHours } from "./types";
 import {
   addDays,
   days,
@@ -11,11 +11,13 @@ import {
   shortDay,
   time,
   today,
+  weekLabel,
 } from "./dates";
 import {
   Action,
   Field,
   Form,
+  Icon,
   Loading,
   Modal,
   ResourceError,
@@ -52,6 +54,9 @@ export default function Schedule({
 }) {
   const [week, setWeek] = useState(monday());
   const data = useResource<Week>(`/schedule?week=${week}`);
+  const original = useResource<OriginalWeek>(`/schedule/original?week=${week}`);
+  const hours = useResource<{ overrides: WeeklyHours[] }>(`/schedule/hours?week=${week}`);
+  const [editingHours, setEditingHours] = useState<number | null>(null);
   const issues = useResource<Issue[]>(
     `/issues?category=${encodeURIComponent("근무 변경")}&week=${week}`,
   );
@@ -105,6 +110,8 @@ export default function Schedule({
         setClock(koreaParts());
         void data.refresh();
         void issues.refresh();
+        void original.refresh();
+        void hours.refresh();
       }
     };
     const timer = setInterval(refresh, 60000);
@@ -113,7 +120,7 @@ export default function Schedule({
       clearInterval(timer);
       document.removeEventListener("visibilitychange", refresh);
     };
-  }, [data.refresh, issues.refresh]);
+  }, [data.refresh, issues.refresh, original.refresh, hours.refresh]);
   const dates = days.map((_, index) => addDays(week, index));
   const selectedShift = data.data?.shifts.find((shift) => shift.id === selectedId);
   const pending = new Map<number, number>();
@@ -129,8 +136,9 @@ export default function Schedule({
       ? Math.floor((minute - 540) / 30)
       : -1;
   return (
-    <section className="view standalone-schedule" aria-label="주간 시간표">
-      <div>
+    <section className="view schedule-workspace" aria-label="주간 시간표">
+      <div className="schedule-row">
+      <div className="compact-schedule">
         <div className="card schedule-only">
           <div className="card-head schedule-head">
             <h2>주간 근무 시간표</h2>
@@ -142,8 +150,8 @@ export default function Schedule({
               >
                 ‹
               </button>
-              <strong>
-                {shortDay(week)} – {shortDay(dates[4])}
+              <strong className={week === monday() ? "current-week" : undefined}>
+                {weekLabel(week)}
               </strong>
               <button
                 className="icon-btn"
@@ -151,20 +159,6 @@ export default function Schedule({
                 onClick={() => setWeek(addDays(week, 7))}
               >
                 ›
-              </button>
-              <button
-                className="btn"
-                onClick={() => {
-                  setWeek(monday());
-                  setDay(
-                    Math.min(
-                      (new Date(`${today()}T00:00:00Z`).getUTCDay() + 6) % 7,
-                      4,
-                    ),
-                  );
-                }}
-              >
-                이번 주
               </button>
             </div>
           </div>
@@ -343,20 +337,6 @@ export default function Schedule({
           )}
         </div>
       </div>
-      <aside className="schedule-sidebar">
-        <section className="card stats-card">
-          <div className="card-head">
-            <h2>
-              주당 근무 시간{" "}
-              <small>
-                {data.data?.staff.filter((person) => person.active).length ??
-                  "…"}
-                명
-              </small>
-            </h2>
-          </div>
-          {data.data && <Stats week={data.data} />}
-        </section>
         <section className="card shift-issues-card" aria-label="근무 변경 이슈">
           <div className="card-head">
             <h2>근무 변경 이슈</h2>
@@ -376,7 +356,7 @@ export default function Schedule({
               <option value="all">전체</option>
             </select>
             <span className="hint">
-              {shortDay(week)}–{shortDay(dates[4])}
+              {weekLabel(week)}
             </span>
           </div>
           <IssueList
@@ -389,7 +369,42 @@ export default function Schedule({
             onApply={apply}
           />
         </section>
-      </aside>
+      </div>
+      <div className="schedule-row">
+        {original.data ? <OriginalSchedule week={original.data} current={data.error ? undefined : data.data} admin={admin} error={original.error} onSaved={original.refresh} /> : (
+          <section className="card">
+            <div className="card-head"><h2>원본 근무 시간표</h2></div>
+            <Loading error={original.error} retry={original.refresh} />
+          </section>
+        )}
+        <section className="card stats-card">
+          <div className="card-head">
+            <h2>
+              주당 근무 시간{" "}
+              <small>
+                {original.data?.staff.filter((person) => person.active).length ?? "…"}명
+              </small>
+            </h2>
+          </div>
+          {original.data?.saved ? (
+            hours.data ? <>
+              <ResourceError error={original.error} retry={original.refresh} />
+              <ResourceError error={hours.error} retry={hours.refresh} />
+              <Stats week={original.data} overrides={hours.data.overrides} onEdit={admin ? setEditingHours : undefined} />
+            </> : <Loading error={hours.error} retry={hours.refresh} />
+          ) : original.data ? <p className="shift-issue-empty">원본 근무 시간표를 먼저 저장해주세요.</p> : <Loading error={original.error} retry={original.refresh} />}
+        </section>
+      </div>
+      {editingHours != null && original.data?.saved && hours.data && (
+        <WeeklyHoursEditor
+          key={`${week}/${editingHours}`}
+          week={original.data}
+          person={editingHours}
+          override={hours.data.overrides.find((entry) => entry.staff_id === editingHours)}
+          onClose={() => setEditingHours(null)}
+          onSaved={hours.refresh}
+        />
+      )}
       {selectedShift && data.data && (
         <Modal title="근무 상세 · 변경 요청" onClose={() => setSelectedId(null)}>
           <p className="shift-detail-summary">
@@ -476,10 +491,78 @@ export default function Schedule({
     </section>
   );
 }
-function Stats({ week }: { week: Week }) {
+function OriginalSchedule({ week, current, admin, error, onSaved }: { week: OriginalWeek; current?: Week; admin: boolean; error?: string; onSaved: () => Promise<void> }) {
+  const notice = useNotice();
+  const dates = days.map((_, index) => addDays(week.week, index));
+  const columns = dates.flatMap((date) => (["desk", "general"] as const).map((role) => ({ date, role })));
+  const rows = Array.from({ length: 26 }, (_, index) => {
+    const start = 540 + index * 30;
+    return [
+      `${time(start)}–${time(start + 30)}`,
+      ...columns.map(({ date, role }) => week.shifts
+        .filter((shift) => shift.day === date && shift.role === role && shift.start <= start && shift.end > start)
+        .map((shift) => week.staff.find((person) => person.id === shift.staff_id)?.name ?? "근무자")
+        .join(", ")),
+    ];
+  });
+  return (
+    <section className="card schedule-copy-card" aria-label="원본 근무 시간표">
+      <div className="card-head">
+        <h2>원본 근무 시간표</h2>
+        <div className="issue-card-actions">
+        {admin && <Action disabled={!current?.shifts.length} run={async () => {
+          if (!current || !confirm(week.saved ? "합의한 원본을 현재 주간 근무표로 교체할까요? 별도로 조정한 주당 근무 시간은 유지됩니다." : "현재 주간 근무표를 합의한 원본으로 저장할까요?")) return;
+          await api("/schedule/original", "PUT", { week: week.week, shifts: current.shifts });
+          await onSaved();
+          notice("원본 근무 시간표를 저장했어요.");
+        }}>{week.saved ? "원본 다시 저장" : "현재 근무표를 원본으로 저장"}</Action>}
+        <Action disabled={!week.saved} run={async () => {
+          const header = ["시간", ...days.flatMap((day) => [`${day} 데스크`, `${day} 대기`])];
+          await navigator.clipboard.writeText([header, ...rows].map((row) => row.join("\t")).join("\n"));
+          notice("근무표를 복사했어요. 엑셀이나 시트에 붙여넣으세요.");
+        }}><Icon name="copy" />표 복사</Action>
+        </div>
+      </div>
+      <ResourceError error={error} retry={onSaved} />
+      {!week.saved ? <p className="shift-issue-empty">합의한 근무표를 원본으로 저장하면 이후 근무 변경과 별개로 유지됩니다.</p> : (
+      <div className="table-inset">
+        <table className="schedule-copy-table">
+          <caption className="sr-only">{weekLabel(week.week)} 근무표</caption>
+          <thead>
+            <tr>
+              <th rowSpan={2} scope="col">시간</th>
+              {days.map((day, index) => <th key={day} colSpan={2} scope="colgroup">{day} <small>{shortDay(dates[index])}</small></th>)}
+            </tr>
+            <tr>{columns.map(({ date, role }) => <th key={`${date}/${role}`} scope="col" className={role === "desk" ? "copy-desk" : "copy-standby"}>{role === "desk" ? "데스크" : "대기"}</th>)}</tr>
+          </thead>
+          <tbody>
+            {rows.map(([slot, ...cells]) => (
+              <tr key={slot}>
+                <th scope="row">{slot}</th>
+                {cells.map((name, index) => <td key={index} className={index % 2 === 0 ? "copy-desk" : "copy-standby"}>{name}</td>)}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      )}
+    </section>
+  );
+}
+function originalHours(week: Week, person: number): WeeklyHours {
   const closing = new Map<string, number>();
   for (const shift of week.shifts)
     closing.set(shift.day, Math.max(closing.get(shift.day) ?? 1260, shift.end));
+  const shifts = week.shifts.filter((shift) => shift.staff_id === person);
+  return {
+    staff_id: person,
+    total_minutes: shifts.reduce((sum, shift) => sum + shift.end - shift.start, 0),
+    desk_minutes: shifts.filter((shift) => shift.role === "desk").reduce((sum, shift) => sum + shift.end - shift.start, 0),
+    opens: new Set(shifts.filter((shift) => shift.start === 540).map((shift) => shift.day)).size,
+    closes: new Set(shifts.filter((shift) => shift.end === closing.get(shift.day)).map((shift) => shift.day)).size,
+  };
+}
+function Stats({ week, overrides, onEdit }: { week: Week; overrides: WeeklyHours[]; onEdit?: (person: number) => void }) {
   return (
     <div className="table-inset">
       <div className="stats-columns">
@@ -491,45 +574,28 @@ function Stats({ week }: { week: Week }) {
       </div>
       <div className="stats-rows">
         {week.staff.map((person) => {
-          const shifts = week.shifts.filter(
-            (shift) => shift.staff_id === person.id,
-          );
-          const total = shifts.reduce(
-            (sum, shift) => sum + (shift.end - shift.start) / 60,
-            0,
-          );
-          const desk = shifts
-            .filter((shift) => shift.role === "desk")
-            .reduce((sum, shift) => sum + (shift.end - shift.start) / 60, 0);
+          const override = overrides.find((entry) => entry.staff_id === person.id);
+          const result = override ?? originalHours(week, person.id);
           return (
             <div className="staff-row" key={person.id}>
-              <div className="staff-name">{person.name}</div>
+              <div className="staff-name">
+                {onEdit ? <button type="button" className="text-btn" aria-label={`${person.name} 주당 근무 시간 조정`} onClick={() => onEdit(person.id)}>{person.name}</button> : person.name}
+                {override && <small className="hours-adjusted">조정</small>}
+              </div>
               <span>
-                {total}
+                {result.total_minutes / 60}
                 <small>h</small>
               </span>
               <span className="blue">
-                {desk}
+                {result.desk_minutes / 60}
                 <small>h</small>
               </span>
               <span>
-                {
-                  new Set(
-                    shifts
-                      .filter((shift) => shift.start === 540)
-                      .map((shift) => shift.day),
-                  ).size
-                }
+                {result.opens}
                 <small>회</small>
               </span>
               <span>
-                {
-                  new Set(
-                    shifts
-                      .filter((shift) => shift.end === closing.get(shift.day))
-                      .map((shift) => shift.day),
-                  ).size
-                }
+                {result.closes}
                 <small>회</small>
               </span>
             </div>
@@ -537,6 +603,40 @@ function Stats({ week }: { week: Week }) {
         })}
       </div>
     </div>
+  );
+}
+function WeeklyHoursEditor({ week, person, override, onClose, onSaved }: {
+  week: Week;
+  person: number;
+  override?: WeeklyHours;
+  onClose: () => void;
+  onSaved: () => Promise<void>;
+}) {
+  const initial = override ?? originalHours(week, person);
+  const notice = useNotice();
+  return (
+    <Modal title={`${week.staff.find((entry) => entry.id === person)?.name ?? "근무자"} · 주당 근무 시간`} onClose={onClose}>
+      <Form onClose={onClose} onSave={async (form) => {
+        const total = numeric(form, "total") * 60;
+        const desk = numeric(form, "desk") * 60;
+        if (desk > total) throw new Error("데스크 시간은 총 근무 시간을 초과할 수 없습니다.");
+        await api(`/schedule/hours/${person}`, "PUT", { week: week.week, total_minutes: total, desk_minutes: desk, opens: numeric(form, "opens"), closes: numeric(form, "closes") });
+        await onSaved();
+        onClose();
+        notice("주당 근무 시간을 조정했어요.");
+      }}>
+        <Field label="총 근무 시간 (h)"><input name="total" type="number" required min={0} max={65} step={0.5} defaultValue={initial.total_minutes / 60} /></Field>
+        <Field label="데스크 시간 (h)"><input name="desk" type="number" required min={0} max={65} step={0.5} defaultValue={initial.desk_minutes / 60} /></Field>
+        <Field label="오픈 (회)"><input name="opens" type="number" required min={0} max={5} step={1} defaultValue={initial.opens} /></Field>
+        <Field label="마감 (회)"><input name="closes" type="number" required min={0} max={5} step={1} defaultValue={initial.closes} /></Field>
+        {override && <Action run={async () => {
+          await api(`/schedule/hours/${person}?week=${week.week}`, "DELETE");
+          await onSaved();
+          onClose();
+          notice("원본 근무표 기준으로 되돌렸어요.");
+        }}>원본 기준으로 되돌리기</Action>}
+      </Form>
+    </Modal>
   );
 }
 function ShiftEditor({

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { api, useResource } from "./api";
 import type { Issue, User } from "./types";
-import { addDays, monday, shortDay, today, time } from "./dates";
+import { addDays, days, monday, shortDay, today, time, weekLabel } from "./dates";
 import ShiftIssueEditor from "./ShiftIssueEditor";
 import {
   Action,
@@ -32,10 +32,10 @@ export default function Issues({ resource, user }: { resource: IssuesResource; u
     };
   }, [weekly.refresh]);
   return (
-    <section className="view" aria-label="이슈와 인계 사항">
+    <section className="view" aria-label="이슈">
       <section className="card wide-card">
         <div className="card-head">
-          <h2>이슈 & 인계 사항</h2>
+          <h2>이슈</h2>
           <button className="btn primary" onClick={() => setAdding(true)}>
             ＋ 새 이슈
           </button>
@@ -43,9 +43,8 @@ export default function Issues({ resource, user }: { resource: IssuesResource; u
         <div className="issue-week-tools">
           <div className="week-controls" aria-label="이슈 조회 주간">
             <button type="button" className="icon-btn" aria-label="이전 주 이슈" onClick={() => setWeek(addDays(week, -7))}>‹</button>
-            <strong>{shortDay(week)} – {shortDay(addDays(week, 6))}</strong>
+            <strong className={week === monday() ? "current-week" : undefined}>{weekLabel(week)}</strong>
             <button type="button" className="icon-btn" aria-label="다음 주 이슈" onClick={() => setWeek(addDays(week, 7))}>›</button>
-            <button type="button" className="btn" onClick={() => setWeek(monday())}>이번 주</button>
           </div>
           <select
             className="select"
@@ -58,12 +57,27 @@ export default function Issues({ resource, user }: { resource: IssuesResource; u
             <option value="done">완료</option>
           </select>
         </div>
-        <IssueList resource={weekly} filter={filter} user={user} titlesOnly onChanged={resource.refresh} />
+        {weekly.data ? (
+          <>
+            <ResourceError error={weekly.error} retry={weekly.refresh} />
+            <div className="issue-week-board">
+              {days.map((label, index) => {
+                const date = addDays(week, index);
+                return (
+                  <section key={date} className="issue-day-column" aria-label={`${date} ${label}요일 이슈`}>
+                    <h3 className="issue-day-heading">{label}<time dateTime={date}>{shortDay(date)}</time></h3>
+                    <IssueList resource={{ ...weekly, error: undefined, data: weekly.data!.filter((issue) => issue.day === date) }} filter={filter} user={user} titlesOnly onChanged={resource.refresh} />
+                  </section>
+                );
+              })}
+            </div>
+          </>
+        ) : <Loading error={weekly.error} retry={weekly.refresh} />}
       </section>
       {adding && (
         <IssueEditor
           user={user}
-          day={today() >= week && today() <= addDays(week, 6) ? today() : week}
+          day={today() >= week && today() <= addDays(week, 4) ? today() : week}
           onClose={() => setAdding(false)}
           onSaved={async () => {
             await Promise.all([weekly.refresh(), resource.refresh()]);
@@ -107,6 +121,7 @@ export function IssueList({
               issue={issue}
               user={user}
               showTitle={!titlesOnly}
+              showCategory={!compact}
               onSelect={onSelect}
               onApply={onApply}
               onChanged={async () => {
@@ -117,7 +132,7 @@ export function IssueList({
           );
           return titlesOnly ? (
             <details key={issue.id} className="issue-disclosure">
-              <summary>{issue.title}</summary>
+              <summary><span><span className="issue-title-category">{issue.category}</span> {issue.title}</span></summary>
               <div className="issue-entry issue-expanded-content">{content}</div>
             </details>
           ) : (
@@ -137,6 +152,7 @@ function IssueContent({
   issue,
   user,
   showTitle,
+  showCategory,
   onSelect,
   onApply,
   onChanged,
@@ -144,6 +160,7 @@ function IssueContent({
   issue: Issue;
   user: User;
   showTitle: boolean;
+  showCategory: boolean;
   onSelect?: (issue: Issue) => void;
   onApply?: (issue: Issue) => void;
   onChanged: () => Promise<void>;
@@ -155,10 +172,9 @@ function IssueContent({
           <span className={`issue-status ${issue.done ? "is-done" : "is-open"}`}>
             {issue.done ? "완료" : "진행 중"}
           </span>
-          <span className="issue-category">{issue.category}</span>
           <time dateTime={issue.day}>{issue.day}</time>
         </div>
-        {showTitle && <h3>{issue.title}</h3>}
+        {showTitle && <h3>{showCategory && <><span className="issue-title-category">{issue.category}</span>{" "}</>}{issue.title}</h3>}
         {issue.shift_start != null && issue.shift_end != null && (
           <p className="shift-issue-reference">
             {issue.shift_name} · {issue.day} · {time(issue.shift_start)}–{time(issue.shift_end)}

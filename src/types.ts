@@ -34,6 +34,16 @@ export interface Week {
   staff: Staff[];
   shifts: Shift[];
 }
+export interface OriginalWeek extends Week {
+  saved: boolean;
+}
+export interface WeeklyHours {
+  staff_id: number;
+  total_minutes: number;
+  desk_minutes: number;
+  opens: number;
+  closes: number;
+}
 export interface Duty {
   teacher_id: number;
   teacher: string;
