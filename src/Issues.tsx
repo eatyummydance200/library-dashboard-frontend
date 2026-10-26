@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { api, useResource } from "./api";
-import type { Issue } from "./types";
-import { today, dateTime } from "./dates";
+import type { Issue, User } from "./types";
+import { addDays, monday, shortDay, today, time } from "./dates";
+import ShiftIssueEditor from "./ShiftIssueEditor";
 import {
   Action,
   Field,
@@ -14,9 +15,22 @@ import {
 } from "./ui";
 
 type IssuesResource = ReturnType<typeof useResource<Issue[]>>;
-export default function Issues({ resource }: { resource: IssuesResource }) {
+export default function Issues({ resource, user }: { resource: IssuesResource; user: User }) {
+  const [week, setWeek] = useState(monday());
+  const weekly = useResource<Issue[]>(`/issues?week=${week}`);
   const [filter, setFilter] = useState("all");
   const [adding, setAdding] = useState(false);
+  useEffect(() => {
+    const refresh = () => {
+      if (!document.hidden) void weekly.refresh();
+    };
+    const timer = setInterval(refresh, 60000);
+    document.addEventListener("visibilitychange", refresh);
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener("visibilitychange", refresh);
+    };
+  }, [weekly.refresh]);
   return (
     <section className="view" aria-label="이슈와 인계 사항">
       <section className="card wide-card">
@@ -26,7 +40,13 @@ export default function Issues({ resource }: { resource: IssuesResource }) {
             ＋ 새 이슈
           </button>
         </div>
-        <div style={{ padding: "0 22px 4px" }}>
+        <div className="issue-week-tools">
+          <div className="week-controls" aria-label="이슈 조회 주간">
+            <button type="button" className="icon-btn" aria-label="이전 주 이슈" onClick={() => setWeek(addDays(week, -7))}>‹</button>
+            <strong>{shortDay(week)} – {shortDay(addDays(week, 6))}</strong>
+            <button type="button" className="icon-btn" aria-label="다음 주 이슈" onClick={() => setWeek(addDays(week, 7))}>›</button>
+            <button type="button" className="btn" onClick={() => setWeek(monday())}>이번 주</button>
+          </div>
           <select
             className="select"
             aria-label="이슈 상태 필터"
@@ -37,14 +57,17 @@ export default function Issues({ resource }: { resource: IssuesResource }) {
             <option value="open">진행 중</option>
             <option value="done">완료</option>
           </select>
-          <span className="hint"> 최근 200건 · 서버에 저장됩니다.</span>
         </div>
-        <IssueList resource={resource} filter={filter} />
+        <IssueList resource={weekly} filter={filter} user={user} titlesOnly onChanged={resource.refresh} />
       </section>
       {adding && (
         <IssueEditor
+          user={user}
+          day={today() >= week && today() <= addDays(week, 6) ? today() : week}
           onClose={() => setAdding(false)}
-          onSaved={resource.refresh}
+          onSaved={async () => {
+            await Promise.all([weekly.refresh(), resource.refresh()]);
+          }}
         />
       )}
     </section>
@@ -55,11 +78,19 @@ export function IssueList({
   filter,
   compact = false,
   onChanged,
+  user,
+  onSelect,
+  onApply,
+  titlesOnly = false,
 }: {
   resource: IssuesResource;
   filter: string;
   compact?: boolean;
   onChanged?: () => Promise<void>;
+  user: User;
+  onSelect?: (issue: Issue) => void;
+  onApply?: (issue: Issue) => void;
+  titlesOnly?: boolean;
 }) {
   if (!resource.data)
     return <Loading error={resource.error} retry={resource.refresh} />;
@@ -70,46 +101,31 @@ export function IssueList({
     <>
       <ResourceError error={resource.error} retry={resource.refresh} />
       <div className={compact ? "" : "issue-list"}>
-        {visible.map((issue) => (
-          <article
-            key={issue.id}
-            className={`${compact ? "shift-issue-entry" : "issue-entry"} ${issue.done ? "done" : ""}`}
-          >
-            {!compact && (
-              <span className="avatar">{issue.author.slice(0, 1)}</span>
-            )}
-            <div className="issue-body">
-              {!compact && (
-                <span
-                  className={`pill ${issue.category === "공지" ? "green" : ""}`}
-                >
-                  {issue.category}
-                </span>
-              )}
-              <span className="hint">
-                {issue.done ? "완료" : "진행 중"} · {issue.day}
-              </span>
-              <h3>{issue.title}</h3>
-              <p>{issue.body}</p>
-              <small>
-                {issue.author}
-                {!compact && ` · ${dateTime(issue.created_at)}`}
-              </small>
-            </div>
-            <Action
-              className={compact ? "text-btn" : "btn"}
-              run={async () => {
-                await api(`/issues/${issue.id}`, "PATCH", {
-                  done: !issue.done,
-                });
+        {visible.map((issue) => {
+          const content = (
+            <IssueContent
+              issue={issue}
+              user={user}
+              showTitle={!titlesOnly}
+              onSelect={onSelect}
+              onApply={onApply}
+              onChanged={async () => {
                 await resource.refresh();
                 await onChanged?.();
               }}
-            >
-              {issue.done ? "다시 열기" : "완료하기"}
-            </Action>
-          </article>
-        ))}
+            />
+          );
+          return titlesOnly ? (
+            <details key={issue.id} className="issue-disclosure">
+              <summary>{issue.title}</summary>
+              <div className="issue-entry issue-expanded-content">{content}</div>
+            </details>
+          ) : (
+            <article key={issue.id} className={compact ? "shift-issue-entry" : "issue-entry"}>
+              {content}
+            </article>
+          );
+        })}
         {!visible.length && (
           <p className="shift-issue-empty">해당하는 이슈가 없습니다.</p>
         )}
@@ -117,18 +133,90 @@ export function IssueList({
     </>
   );
 }
+function IssueContent({
+  issue,
+  user,
+  showTitle,
+  onSelect,
+  onApply,
+  onChanged,
+}: {
+  issue: Issue;
+  user: User;
+  showTitle: boolean;
+  onSelect?: (issue: Issue) => void;
+  onApply?: (issue: Issue) => void;
+  onChanged: () => Promise<void>;
+}) {
+  return (
+    <>
+      <div className="issue-body">
+        <div className="issue-meta">
+          <span className={`issue-status ${issue.done ? "is-done" : "is-open"}`}>
+            {issue.done ? "완료" : "진행 중"}
+          </span>
+          <span className="issue-category">{issue.category}</span>
+          <time dateTime={issue.day}>{issue.day}</time>
+        </div>
+        {showTitle && <h3>{issue.title}</h3>}
+        {issue.shift_start != null && issue.shift_end != null && (
+          <p className="shift-issue-reference">
+            {issue.shift_name} · {issue.day} · {time(issue.shift_start)}–{time(issue.shift_end)}
+            {` · ${issue.shift_role === "desk" ? "데스크" : "대기"}`}
+          </p>
+        )}
+        <p>{issue.body}</p>
+        {issue.shift_start != null && issue.shift_id == null && (
+          <p className="hint">연결된 근무가 삭제되었습니다.</p>
+        )}
+        {onSelect && issue.shift_id != null && (
+          <button type="button" className="text-btn shift-issue-link" onClick={() => onSelect(issue)}>
+            근무표에서 보기
+          </button>
+        )}
+      </div>
+      <div className="shift-issue-actions">
+        {user.role === "admin" && !issue.done && issue.shift_id != null && onApply && (
+          <button type="button" className="text-btn" onClick={() => onApply(issue)}>
+            변경 반영
+          </button>
+        )}
+        {(issue.shift_start == null || user.role === "admin") && (
+          <Action
+            className="btn"
+            run={async () => {
+              if (issue.shift_start != null && !issue.done &&
+                !confirm("근무표 반영 여부를 확인했나요? 이 요청을 완료 처리합니다.")) return;
+              await api(`/issues/${issue.id}`, "PATCH", { done: !issue.done });
+              await onChanged();
+            }}
+          >
+            {issue.done ? "다시 열기" : "완료하기"}
+          </Action>
+        )}
+      </div>
+    </>
+  );
+}
 export function IssueEditor({
+  user,
   onClose,
   onSaved,
   day = today(),
-  category = "인계",
+  category: initialCategory = "인계",
 }: {
   onClose: () => void;
   onSaved: () => Promise<void>;
   day?: string;
   category?: string;
+  user: User;
 }) {
   const notice = useNotice();
+  const [category, setCategory] = useState(initialCategory);
+  const [selectedDay, setSelectedDay] = useState(day);
+  if (category === "근무 변경") {
+    return <ShiftIssueEditor user={user} day={selectedDay} onClose={onClose} onSaved={onSaved} />;
+  }
   return (
     <Modal title="새 이슈 남기기" onClose={onClose}>
       <Form
@@ -151,10 +239,10 @@ export function IssueEditor({
         }}
       >
         <Field label="해당 날짜">
-          <input name="day" type="date" required defaultValue={day} />
+          <input name="day" type="date" required value={selectedDay} onChange={(event) => setSelectedDay(event.target.value)} />
         </Field>
         <Field label="구분">
-          <select name="category" defaultValue={category}>
+          <select name="category" value={category} onChange={(event) => setCategory(event.target.value)}>
             {["인계", "공지", "시설", "근무 변경"].map((category) => (
               <option key={category}>{category}</option>
             ))}
@@ -166,7 +254,6 @@ export function IssueEditor({
         <Field label="내용">
           <textarea name="body" required maxLength={1500} />
         </Field>
-        <p className="hint">등록한 내용은 다른 근무자와 공유됩니다.</p>
       </Form>
     </Modal>
   );

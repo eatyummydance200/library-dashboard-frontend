@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { api, useResource } from "./api";
 import type { Duty, Issue, Staff, Status, Teacher, User } from "./types";
-import { dateTime, koreaParts } from "./dates";
+import { dateTime, koreaParts, today } from "./dates";
+import { IssueEditor, IssueList } from "./Issues";
 import {
   Field,
   Form,
@@ -24,12 +25,17 @@ export default function Dashboard({
   const status = useResource<Status>("/status");
   const duty = useResource<Duty>("/duty");
   const staff = useResource<Staff[]>("/staff");
+  const [day, setDay] = useState(today);
+  const dailyIssues = useResource<Issue[]>(`/issues?day=${day}`);
+  const [addingIssue, setAddingIssue] = useState(false);
   const [editing, setEditing] = useState(false);
   useEffect(() => {
     const refresh = () => {
       if (!document.hidden) {
+        setDay(today());
         void status.refresh();
         void duty.refresh();
+        void dailyIssues.refresh();
       }
     };
     const timer = setInterval(refresh, 60000);
@@ -38,8 +44,7 @@ export default function Dashboard({
       clearInterval(timer);
       document.removeEventListener("visibilitychange", refresh);
     };
-  }, [status.refresh, duty.refresh]);
-  const open = issues.data?.filter((issue) => !issue.done) ?? [];
+  }, [status.refresh, duty.refresh, dailyIssues.refresh]);
   const clock = status.data ? koreaParts(new Date(status.data.at)) : undefined;
   return (
     <section id="dashboard" className="view" aria-label="근무 대시보드">
@@ -144,7 +149,9 @@ export default function Dashboard({
                 ].map(([label, text]) => (
                   <div key={label}>
                     <dt>{label}</dt>
-                    <dd>{text || "미등록"}</dd>
+                    <dd className={text ? undefined : "duty-empty"}>
+                      {text || "미등록"}
+                    </dd>
                   </div>
                 ))}
               </dl>
@@ -157,34 +164,25 @@ export default function Dashboard({
       <section className="card issues-card">
         <div className="card-head">
           <h2>
-            이슈 & 인계 <small>{open.length}</small>
+            오늘의 이슈 & 인계 <small>{dailyIssues.data?.length ?? "…"}</small>
           </h2>
-          <button className="text-btn" onClick={showIssues}>
-            전체 보기 ›
-          </button>
+          <div className="issue-card-actions">
+            <button className="text-btn" onClick={showIssues}>주간 보기 ›</button>
+            <button className="btn primary" onClick={() => setAddingIssue(true)}>＋ 새 이슈</button>
+          </div>
         </div>
-        {issues.data ? (
-          <>
-            <ResourceError error={issues.error} retry={issues.refresh} />
-            <div className="issue-preview">
-              {open.slice(0, 2).map((issue) => (
-                <div key={issue.id}>
-                  <span
-                    className={`pill ${issue.category === "공지" ? "green" : ""}`}
-                  >
-                    {issue.category}
-                  </span>
-                  <small>{issue.day}</small>
-                  <p>{issue.title}</p>
-                </div>
-              ))}
-              {!open.length && <p>남아 있는 이슈가 없어요.</p>}
-            </div>
-          </>
-        ) : (
-          <Loading error={issues.error} retry={issues.refresh} />
-        )}
+        <IssueList resource={dailyIssues} user={user} filter="all" onChanged={issues.refresh} />
       </section>
+      {addingIssue && (
+        <IssueEditor
+          user={user}
+          day={day}
+          onClose={() => setAddingIssue(false)}
+          onSaved={async () => {
+            await Promise.all([dailyIssues.refresh(), issues.refresh()]);
+          }}
+        />
+      )}
       {editing && (
         <DutyEditor onClose={() => setEditing(false)} onSaved={duty.refresh} />
       )}
