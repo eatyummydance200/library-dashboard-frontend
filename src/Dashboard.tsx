@@ -161,15 +161,15 @@ export default function Dashboard({
           )}
         </section>
       </div>
-      <section className="card issues-card" aria-label="이슈">
+      <section className="card issues-card" aria-label="오늘의 이슈">
         <div className="card-head">
-          <h2>이슈</h2>
+          <h2>오늘의 이슈</h2>
           <div className="issue-card-actions">
             <button className="text-btn" onClick={showIssues}>주간 보기 ›</button>
             <button className="btn primary" onClick={() => setAddingIssue(true)}>＋ 새 이슈</button>
           </div>
         </div>
-        <IssueList resource={dailyIssues} user={user} filter="all" onChanged={issues.refresh} />
+        <IssueList resource={dailyIssues} user={user} filter="all" groupByCategory onChanged={issues.refresh} />
       </section>
       {addingIssue && (
         <IssueEditor

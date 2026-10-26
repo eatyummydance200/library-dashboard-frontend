@@ -96,6 +96,7 @@ export function IssueList({
   onSelect,
   onApply,
   titlesOnly = false,
+  groupByCategory = false,
 }: {
   resource: IssuesResource;
   filter: string;
@@ -105,23 +106,34 @@ export function IssueList({
   onSelect?: (issue: Issue) => void;
   onApply?: (issue: Issue) => void;
   titlesOnly?: boolean;
+  groupByCategory?: boolean;
 }) {
   if (!resource.data)
     return <Loading error={resource.error} retry={resource.refresh} />;
   const visible = resource.data.filter(
     (issue) => filter === "all" || (filter === "done") === !!issue.done,
   );
+  const groups = groupByCategory
+    ? [...new Set(visible.map((issue) => issue.category))].map((category) => ({
+        category,
+        issues: visible.filter((issue) => issue.category === category),
+      }))
+    : [{ category: "", issues: visible }];
   return (
     <>
       <ResourceError error={resource.error} retry={resource.refresh} />
-      <div className={compact ? "" : "issue-list"}>
-        {visible.map((issue) => {
+      <div className={groupByCategory ? "issue-list issue-groups" : compact ? "" : "issue-list"}>
+        {groups.map((group) => (
+          <div key={group.category} className={groupByCategory ? "issue-group" : undefined}>
+            {groupByCategory && <h3 className="issue-group-heading">{group.category}<span>{group.issues.length}</span></h3>}
+        {group.issues.map((issue) => {
           const content = (
             <IssueContent
               issue={issue}
               user={user}
               showTitle={!titlesOnly}
-              showCategory={!compact}
+              showCategory={!compact && !groupByCategory}
+              showDate={!groupByCategory}
               onSelect={onSelect}
               onApply={onApply}
               onChanged={async () => {
@@ -141,6 +153,8 @@ export function IssueList({
             </article>
           );
         })}
+          </div>
+        ))}
         {!visible.length && (
           <p className="shift-issue-empty">해당하는 이슈가 없습니다.</p>
         )}
@@ -153,6 +167,7 @@ function IssueContent({
   user,
   showTitle,
   showCategory,
+  showDate,
   onSelect,
   onApply,
   onChanged,
@@ -161,6 +176,7 @@ function IssueContent({
   user: User;
   showTitle: boolean;
   showCategory: boolean;
+  showDate: boolean;
   onSelect?: (issue: Issue) => void;
   onApply?: (issue: Issue) => void;
   onChanged: () => Promise<void>;
@@ -172,12 +188,12 @@ function IssueContent({
           <span className={`issue-status ${issue.done ? "is-done" : "is-open"}`}>
             {issue.done ? "완료" : "진행 중"}
           </span>
-          <time dateTime={issue.day}>{issue.day}</time>
+          {showDate && <time dateTime={issue.day}>{issue.day}</time>}
         </div>
         {showTitle && <h3>{showCategory && <><span className="issue-title-category">{issue.category}</span>{" "}</>}{issue.title}</h3>}
         {issue.shift_start != null && issue.shift_end != null && (
           <p className="shift-issue-reference">
-            {issue.shift_name} · {issue.day} · {time(issue.shift_start)}–{time(issue.shift_end)}
+            {issue.shift_name} · {showDate && `${issue.day} · `}{time(issue.shift_start)}–{time(issue.shift_end)}
             {` · ${issue.shift_role === "desk" ? "데스크" : "대기"}`}
           </p>
         )}
