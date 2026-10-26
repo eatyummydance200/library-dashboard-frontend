@@ -6,3 +6,4 @@ dist/
 static/fonts/*.woff2
 public/OFL.txt
 *.log
+/AGENTS.md
