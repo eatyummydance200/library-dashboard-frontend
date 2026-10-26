@@ -107,13 +107,6 @@ export default function Archive({ user }: { user: User }) {
             >
               ›
             </button>
-            <button
-              className="btn"
-              disabled={!!pending.length}
-              onClick={() => setMonth(today().slice(0, 7))}
-            >
-              이번 달
-            </button>
           </div>
         </div>
         {data ? (
@@ -248,12 +241,6 @@ export default function Archive({ user }: { user: User }) {
                 </tbody>
               </table>
             </div>
-            {data.draw && (
-              <p className="archive-meta">
-                최초 등록 {dateTime(data.draw.created_at)} ·{" "}
-                {data.draw.created_by_name}
-              </p>
-            )}
           </>
         ) : (
           <Loading error={resource.error} retry={resource.refresh} />
