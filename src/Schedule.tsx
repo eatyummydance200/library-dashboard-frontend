@@ -17,7 +17,6 @@ import {
   Action,
   Field,
   Form,
-  Icon,
   Loading,
   Modal,
   ResourceError,
@@ -189,7 +188,7 @@ export default function Schedule({
                     disabled={!data.data}
                     onClick={() => setCopying(true)}
                   >
-                    주 복사
+                    확정표에서 가져오기
                   </button>
                 </>
               )}
@@ -371,9 +370,9 @@ export default function Schedule({
         </section>
       </div>
       <div className="schedule-row">
-        {original.data ? <OriginalSchedule week={original.data} current={data.error ? undefined : data.data} admin={admin} error={original.error} onSaved={original.refresh} /> : (
+        {original.data ? <ConfirmedSchedule key={week} week={original.data} current={data.error ? undefined : data.data} admin={admin} error={original.error} onSaved={async () => { await Promise.all([original.refresh(), hours.refresh()]); }} /> : (
           <section className="card">
-            <div className="card-head"><h2>원본 근무 시간표</h2></div>
+            <div className="card-head"><h2>확정된 근무 시간표</h2></div>
             <Loading error={original.error} retry={original.refresh} />
           </section>
         )}
@@ -392,7 +391,7 @@ export default function Schedule({
               <ResourceError error={hours.error} retry={hours.refresh} />
               <Stats week={original.data} overrides={hours.data.overrides} onEdit={admin ? setEditingHours : undefined} />
             </> : <Loading error={hours.error} retry={hours.refresh} />
-          ) : original.data ? <p className="shift-issue-empty">원본 근무 시간표를 먼저 저장해주세요.</p> : <Loading error={original.error} retry={original.refresh} />}
+          ) : original.data ? <p className="shift-issue-empty">확정된 근무 시간표를 먼저 저장해주세요.</p> : <Loading error={original.error} retry={original.refresh} />}
         </section>
       </div>
       {editingHours != null && original.data?.saved && hours.data && (
@@ -447,12 +446,13 @@ export default function Schedule({
         />
       )}
       {copying && (
-        <Modal title="다른 주에서 복사" onClose={() => setCopying(false)}>
+        <Modal title="확정표를 주간 근무 시간표에 붙여넣기" onClose={() => setCopying(false)}>
           <Form
+            submit="주간표에 붙여넣기"
             onClose={() => setCopying(false)}
             onSave={async (form) => {
               const result = await api<{ count: number }>(
-                "/schedule/copy",
+                "/schedule/original/copy",
                 "POST",
                 {
                   source: value(form, "source"),
@@ -460,22 +460,22 @@ export default function Schedule({
                 },
               );
               setCopying(false);
-              await data.refresh();
-              notice(`${result.count}개 근무를 복사했어요.`);
+              await Promise.all([data.refresh(), onIssuesChange()]);
+              notice(`${result.count}개 확정 근무를 주간표에 붙여넣었어요.`);
             }}
           >
-            <Field label="원본 주에 속한 날짜">
+            <Field label="복사할 확정표의 주에 속한 날짜">
               <input
                 name="source"
                 type="date"
                 required
-                defaultValue={addDays(week, -7)}
+                defaultValue={week}
               />
             </Field>
             <Field label="대상 주에 속한 날짜">
               <input name="target" type="date" required defaultValue={week} />
             </Field>
-            <p className="hint">대상 주에 근무가 있으면 복사하지 않습니다.</p>
+            <p className="hint">확정표의 요일과 시간을 대상 주에 맞춰 복사합니다. 대상 주에 근무가 있으면 붙여넣지 않습니다.</p>
           </Form>
         </Modal>
       )}
@@ -491,64 +491,75 @@ export default function Schedule({
     </section>
   );
 }
-function OriginalSchedule({ week, current, admin, error, onSaved }: { week: OriginalWeek; current?: Week; admin: boolean; error?: string; onSaved: () => Promise<void> }) {
+function ConfirmedSchedule({ week, current, admin, error, onSaved }: { week: OriginalWeek; current?: Week; admin: boolean; error?: string; onSaved: () => Promise<void> }) {
   const notice = useNotice();
+  const [editor, setEditor] = useState<{ shift?: Shift } | null>(null);
   const dates = days.map((_, index) => addDays(week.week, index));
-  const columns = dates.flatMap((date) => (["desk", "general"] as const).map((role) => ({ date, role })));
-  const rows = Array.from({ length: 26 }, (_, index) => {
-    const start = 540 + index * 30;
-    return [
-      `${time(start)}–${time(start + 30)}`,
-      ...columns.map(({ date, role }) => week.shifts
-        .filter((shift) => shift.day === date && shift.role === role && shift.start <= start && shift.end > start)
-        .map((shift) => week.staff.find((person) => person.id === shift.staff_id)?.name ?? "근무자")
-        .join(", ")),
-    ];
+  const lanes = 4;
+  const rows = Array.from({ length: 13 }, (_, index) => {
+    const start = 540 + index * 60;
+    return { start, cells: dates.flatMap((date) => {
+      const entries = week.shifts.filter((shift) => shift.day === date && shift.start < start + 60 && shift.end > start)
+        .sort((a, b) => a.start - b.start || a.id - b.id);
+      const desk = entries.filter((shift) => shift.role === "desk");
+      const standby = entries.filter((shift) => shift.role === "general");
+      return Array.from({ length: lanes }, (_, lane) => (lane === 0 ? desk : standby.slice(lane - 1, lane)).map((shift) => ({
+        shift,
+        name: week.staff.find((person) => person.id === shift.staff_id)?.name ?? "근무자",
+        top: shift.start > start ? "50%" : "0%",
+        height: shift.start <= start && shift.end >= start + 60 ? "100%" : "50%",
+      })));
+    }) };
   });
   return (
-    <section className="card schedule-copy-card" aria-label="원본 근무 시간표">
+    <section className="card schedule-copy-card" aria-label="확정된 근무 시간표">
       <div className="card-head">
-        <h2>원본 근무 시간표</h2>
+        <h2>확정된 근무 시간표</h2>
         <div className="issue-card-actions">
-        {admin && <Action disabled={!current?.shifts.length} run={async () => {
-          if (!current || !confirm(week.saved ? "합의한 원본을 현재 주간 근무표로 교체할까요? 별도로 조정한 주당 근무 시간은 유지됩니다." : "현재 주간 근무표를 합의한 원본으로 저장할까요?")) return;
-          await api("/schedule/original", "PUT", { week: week.week, shifts: current.shifts });
-          await onSaved();
-          notice("원본 근무 시간표를 저장했어요.");
-        }}>{week.saved ? "원본 다시 저장" : "현재 근무표를 원본으로 저장"}</Action>}
-        <Action disabled={!week.saved} run={async () => {
-          const header = ["시간", ...days.flatMap((day) => [`${day} 데스크`, `${day} 대기`])];
-          await navigator.clipboard.writeText([header, ...rows].map((row) => row.join("\t")).join("\n"));
-          notice("근무표를 복사했어요. 엑셀이나 시트에 붙여넣으세요.");
-        }}><Icon name="copy" />표 복사</Action>
+          {admin && <>
+            <button className="btn" disabled={!!error} onClick={() => setEditor({})}>추가</button>
+            {!week.saved && <Action disabled={!current?.shifts.length || !!error} run={async () => {
+              if (!current || !confirm("현재 주간 근무표를 최초 확정표로 저장할까요?")) return;
+              await api("/schedule/original", "PUT", { week: week.week, shifts: current.shifts });
+              await onSaved();
+              notice("확정된 근무 시간표를 저장했어요.");
+            }}>현재 주간표로 최초 확정</Action>}
+          </>}
         </div>
       </div>
       <ResourceError error={error} retry={onSaved} />
-      {!week.saved ? <p className="shift-issue-empty">합의한 근무표를 원본으로 저장하면 이후 근무 변경과 별개로 유지됩니다.</p> : (
-      <div className="table-inset">
-        <table className="schedule-copy-table">
-          <caption className="sr-only">{weekLabel(week.week)} 근무표</caption>
-          <thead>
-            <tr>
-              <th rowSpan={2} scope="col">시간</th>
-              {days.map((day, index) => <th key={day} colSpan={2} scope="colgroup">{day} <small>{shortDay(dates[index])}</small></th>)}
-            </tr>
-            <tr>{columns.map(({ date, role }) => <th key={`${date}/${role}`} scope="col" className={role === "desk" ? "copy-desk" : "copy-standby"}>{role === "desk" ? "데스크" : "대기"}</th>)}</tr>
-          </thead>
-          <tbody>
-            {rows.map(([slot, ...cells]) => (
-              <tr key={slot}>
-                <th scope="row">{slot}</th>
-                {cells.map((name, index) => <td key={index} className={index % 2 === 0 ? "copy-desk" : "copy-standby"}>{name}</td>)}
+      {!week.saved ? <p className="shift-issue-empty">근무를 직접 추가하거나 현재 주간표를 최초 확정표로 저장해주세요.</p> : (
+        <div className="table-inset">
+          <table className="schedule-copy-table confirmed-schedule-table">
+            <caption className="sr-only">확정된 근무 시간표</caption>
+            <thead>
+              <tr>
+                <th scope="col">시간</th>
+                {days.map((day) => <th key={day} colSpan={lanes} scope="colgroup" className="confirmed-day-start">{day}</th>)}
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody>
+              {rows.map(({ start, cells }) => (
+                <tr key={start}>
+                  <th scope="row">{start / 60}–{start / 60 + 1}</th>
+                  {cells.map((entries, index) => <td key={index} className={index % lanes === 0 ? "confirmed-day-start" : undefined}>
+                    <div className="confirmed-hour">
+                      {entries.map(({ shift, name, top, height }) => admin ? (
+                        <button key={shift.id} className={`confirmed-entry ${shift.role === "desk" ? "copy-desk" : "copy-standby"}`} style={{ top, height }} disabled={!!error} title={`${name} · ${time(shift.start)}–${time(shift.end)}`} aria-label={`${days[Math.floor(index / lanes)]} ${name} · ${time(shift.start)}–${time(shift.end)} · ${shift.role === "desk" ? "데스크" : "대기"} · 확정 근무 수정`} onClick={() => setEditor({ shift })}>{name}</button>
+                      ) : <span key={shift.id} className={`confirmed-entry ${shift.role === "desk" ? "copy-desk" : "copy-standby"}`} style={{ top, height }} title={`${name} · ${time(shift.start)}–${time(shift.end)}`}>{name}</span>)}
+                    </div>
+                  </td>)}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
+      {editor && <ShiftEditor key={`${week.week}/${editor.shift?.id ?? "new"}`} week={week} shift={editor.shift} confirmed onClose={() => setEditor(null)} onSaved={onSaved} />}
     </section>
   );
 }
+
 function originalHours(week: Week, person: number): WeeklyHours {
   const closing = new Map<string, number>();
   for (const shift of week.shifts)
@@ -633,8 +644,8 @@ function WeeklyHoursEditor({ week, person, override, onClose, onSaved }: {
           await api(`/schedule/hours/${person}?week=${week.week}`, "DELETE");
           await onSaved();
           onClose();
-          notice("원본 근무표 기준으로 되돌렸어요.");
-        }}>원본 기준으로 되돌리기</Action>}
+          notice("확정표 기준으로 되돌렸어요.");
+        }}>확정표 기준으로 되돌리기</Action>}
       </Form>
     </Modal>
   );
@@ -643,32 +654,35 @@ function ShiftEditor({
   week,
   shift,
   issue,
+  confirmed = false,
   onClose,
   onSaved,
 }: {
   week: Week;
   shift?: Shift;
   issue?: Issue;
+  confirmed?: boolean;
   onClose: () => void;
   onSaved: () => Promise<void>;
 }) {
   const notice = useNotice();
   return (
-    <Modal title={issue ? "변경 반영 및 완료" : shift ? "근무 수정" : "근무 추가"} onClose={onClose}>
+    <Modal title={confirmed ? (shift ? "확정 근무 수정" : "확정 근무 추가") : issue ? "변경 반영 및 완료" : shift ? "근무 수정" : "근무 추가"} onClose={onClose}>
       <Form
         onClose={onClose}
         submit={issue ? "변경 반영 및 완료" : "저장하기"}
         onSave={async (form) => {
+          const entry = {
+            staff_id: numeric(form, "staff_id"),
+            day: value(form, "day"),
+            start: minutes(value(form, "start")),
+            end: minutes(value(form, "end")),
+            role: value(form, "role"),
+          };
           await api(
-            issue ? `/issues/${issue.id}/apply` : shift ? `/shifts/${shift.id}` : "/shifts",
-            issue ? "POST" : shift ? "PUT" : "POST",
-            {
-              staff_id: numeric(form, "staff_id"),
-              day: value(form, "day"),
-              start: minutes(value(form, "start")),
-              end: minutes(value(form, "end")),
-              role: value(form, "role"),
-            },
+            confirmed ? "/schedule/original" : issue ? `/issues/${issue.id}/apply` : shift ? `/shifts/${shift.id}` : "/shifts",
+            confirmed ? "PUT" : issue ? "POST" : shift ? "PUT" : "POST",
+            confirmed ? { week: week.week, shifts: [...week.shifts.filter((item) => item.id !== shift?.id), entry] } : entry,
           );
           onClose();
           await onSaved();
@@ -691,6 +705,8 @@ function ShiftEditor({
             name="day"
             type="date"
             required
+            min={confirmed ? week.week : undefined}
+            max={confirmed ? addDays(week.week, 4) : undefined}
             defaultValue={shift?.day ?? week.week}
           />
         </Field>
@@ -741,7 +757,11 @@ function ShiftEditor({
             className="btn danger"
             run={async () => {
               if (!confirm("이 근무를 삭제할까요?")) return;
-              await api(`/shifts/${shift.id}`, "DELETE");
+              if (confirmed) {
+                await api("/schedule/original", "PUT", { week: week.week, shifts: week.shifts.filter((entry) => entry.id !== shift.id) });
+              } else {
+                await api(`/shifts/${shift.id}`, "DELETE");
+              }
               onClose();
               await onSaved();
               notice("근무를 삭제했어요.");
