@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { api, useResource } from "./api";
 import type { Duty, Issue, Staff, Status, Teacher, User } from "./types";
-import { dateTime, koreaParts, today } from "./dates";
+import { koreaParts, today } from "./dates";
 import { IssueEditor, TodayIssues } from "./Issues";
 import {
   Field,
@@ -54,7 +54,7 @@ export default function Dashboard({
             <h2>근무 현황</h2>
             <span id="shift-date">
               {clock &&
-                `${Number(clock.month)}월 ${Number(clock.day)}일 ${clock.hour}:${clock.minute}`}
+                `${Number(clock.month)}월 ${Number(clock.day)}일`}
             </span>
           </div>
           {status.data && staff.data ? (
@@ -68,7 +68,10 @@ export default function Dashboard({
               />
               <div className="handoff">
                 {(["previous", "current", "next"] as const).map(
-                  (key, index) => (
+                  (key, index) => {
+                    const at = key === "current" ? status.data!.at : status.data![`${key}_at`];
+                    const parts = at ? koreaParts(new Date(at)) : undefined;
+                    return (
                     <article
                       key={key}
                       className={`shift ${index === 1 ? "current" : ""}`}
@@ -78,12 +81,8 @@ export default function Dashboard({
                           {index === 1 && <i className="dot" />}
                           {["이전 근무", "현재 근무", "다음 근무"][index]}
                         </h3>
-                        <time>
-                          {dateTime(
-                            key === "current"
-                              ? status.data!.at
-                              : status.data![`${key}_at`],
-                          )}
+                        <time dateTime={at ?? undefined}>
+                          {parts ? `${parts.hour}:${parts.minute}` : "예정 없음"}
                         </time>
                       </div>
                       {(["desk", "general"] as const).map((role) => {
@@ -115,7 +114,8 @@ export default function Dashboard({
                         );
                       })}
                     </article>
-                  ),
+                    );
+                  },
                 )}
               </div>
             </>
