@@ -195,6 +195,8 @@ function IssueContent({
   onApply?: (issue: Issue) => void;
   onChanged: () => Promise<void>;
 }) {
+  const [editing, setEditing] = useState(false);
+  const editable = !issue.done && (user.role === "admin" || user.id === issue.author_id);
   return (
     <>
       <div className="issue-body">
@@ -222,6 +224,11 @@ function IssueContent({
         )}
       </div>
       <div className="shift-issue-actions">
+        {editable && (
+          <button type="button" className="text-btn" onClick={() => setEditing(true)}>
+            수정
+          </button>
+        )}
         {user.role === "admin" && !issue.done && issue.shift_id != null && onApply && (
           <button type="button" className="text-btn" onClick={() => onApply(issue)}>
             변경 반영
@@ -241,6 +248,7 @@ function IssueContent({
           </Action>
         )}
       </div>
+      {editing && <IssueEditor user={user} issue={issue} onClose={() => setEditing(false)} onSaved={onChanged} />}
     </>
   );
 }
@@ -250,55 +258,62 @@ export function IssueEditor({
   onSaved,
   day = today(),
   category: initialCategory = "인계",
+  issue,
 }: {
   onClose: () => void;
   onSaved: () => Promise<void>;
   day?: string;
   category?: string;
   user: User;
+  issue?: Issue;
 }) {
   const notice = useNotice();
-  const [category, setCategory] = useState(initialCategory);
-  const [selectedDay, setSelectedDay] = useState(day);
-  if (category === "근무 변경") {
+  const [category, setCategory] = useState(issue?.category ?? initialCategory);
+  const [selectedDay, setSelectedDay] = useState(issue?.day ?? day);
+  // A shift change request keeps its shift, day and category; only its text can be edited.
+  const request = issue?.shift_start != null;
+  if (!issue && category === "근무 변경") {
     return <ShiftIssueEditor user={user} day={selectedDay} onClose={onClose} onSaved={onSaved} />;
   }
   return (
-    <Modal title="새 이슈 남기기" onClose={onClose}>
+    <Modal title={issue ? (request ? "근무 변경 요청 수정" : "이슈 수정") : "새 이슈 남기기"} onClose={onClose}>
       <Form
         onClose={onClose}
-        submit="등록하기"
+        submit={issue ? "저장하기" : "등록하기"}
         onSave={async (data) => {
-          await api(
-            "/issues",
-            "POST",
-            Object.fromEntries(
-              ["day", "category", "title", "body"].map((key) => [
-                key,
-                value(data, key),
-              ]),
-            ),
+          const body = Object.fromEntries(
+            (request ? ["title", "body"] : ["day", "category", "title", "body"]).map((key) => [key, value(data, key)]),
           );
+          await (issue ? api(`/issues/${issue.id}`, "PUT", body) : api("/issues", "POST", body));
           onClose();
           await onSaved();
-          notice("이슈를 등록했어요.");
+          notice(issue ? "이슈를 수정했어요." : "이슈를 등록했어요.");
         }}
       >
-        <Field label="해당 날짜">
-          <input name="day" type="date" required value={selectedDay} onChange={(event) => setSelectedDay(event.target.value)} />
-        </Field>
-        <Field label="구분">
-          <select name="category" value={category} onChange={(event) => setCategory(event.target.value)}>
-            {["인계", "공지", "시설", "근무 변경"].map((category) => (
-              <option key={category}>{category}</option>
-            ))}
-          </select>
-        </Field>
+        {request ? (
+          <p className="shift-issue-reference">
+            {issue.shift_name} · {issue.day}
+            {issue.shift_start != null && issue.shift_end != null && ` · ${time(issue.shift_start)}–${time(issue.shift_end)}`}
+          </p>
+        ) : (
+          <>
+            <Field label="해당 날짜">
+              <input name="day" type="date" required value={selectedDay} onChange={(event) => setSelectedDay(event.target.value)} />
+            </Field>
+            <Field label="구분">
+              <select name="category" value={category} onChange={(event) => setCategory(event.target.value)}>
+                {["인계", "공지", "시설", ...(issue ? [] : ["근무 변경"])].map((category) => (
+                  <option key={category}>{category}</option>
+                ))}
+              </select>
+            </Field>
+          </>
+        )}
         <Field label="제목">
-          <input name="title" required maxLength={80} />
+          <input name="title" required maxLength={80} defaultValue={issue?.title} />
         </Field>
         <Field label="내용">
-          <textarea name="body" required maxLength={1500} />
+          <textarea name="body" required maxLength={1500} defaultValue={issue?.body} />
         </Field>
       </Form>
     </Modal>

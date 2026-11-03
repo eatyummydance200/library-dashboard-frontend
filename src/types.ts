@@ -73,6 +73,7 @@ export interface Issue {
   title: string;
   body: string;
   author: string;
+  author_id: number;
   done: number;
   created_at: string;
   shift_id?: number | null;
