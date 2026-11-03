@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import type { CSSProperties } from "react";
+import type { CSSProperties, PointerEvent as ReactPointerEvent } from "react";
 import { api, useResource } from "./api";
 import type { ConfirmedTable, Issue, OriginalWeek, Shift, User, Week, WeeklyHours } from "./types";
 import {
@@ -36,6 +36,11 @@ function onWeek(table: ConfirmedTable, week: string): OriginalWeek {
 }
 function toConfirmed({ staff_id, day, start, end, role }: Shift) {
   return { staff_id, weekday: weekdayOf(day), start, end, role };
+}
+type Draft = Pick<Shift, "day" | "start" | "end">;
+function overlaps(shifts: Shift[], entry: Omit<Shift, "id" | "role">, exclude?: number) {
+  return shifts.some((other) => other.id !== exclude && other.staff_id === entry.staff_id &&
+    other.day === entry.day && other.start < entry.end && other.end > entry.start);
 }
 function layout(entries: Shift[]) {
   const result: (Shift & { lane: number })[] = [];
@@ -77,7 +82,8 @@ export default function Schedule({
   const [person, setPerson] = useState("");
   const [filter, setFilter] = useState("open");
   const [addingIssue, setAddingIssue] = useState<{ shift?: Shift } | null>(null);
-  const [editor, setEditor] = useState<{ shift?: Shift; issue?: Issue } | null>(null);
+  const [editor, setEditor] = useState<{ shift?: Shift; issue?: Issue; draft?: Draft } | null>(null);
+  const [adjust, setAdjust] = useState<{ id: number; start: number; end: number } | null>(null);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [focus, setFocus] = useState<{ id: number } | null>(null);
   const handledFocus = useRef<typeof focus>(null);
@@ -132,6 +138,48 @@ export default function Schedule({
     };
   }, [data.refresh, issues.refresh, table.refresh, hours.refresh]);
   const dates = days.map((_, index) => addDays(week, index));
+  const visibleShifts = data.data?.shifts.map((shift) => shift.id === adjust?.id ? { ...shift, start: adjust.start, end: adjust.end } : shift) ?? [];
+  // Drag a handle to resize a shift. Bounds are checked here so an invalid length can't be produced;
+  // the server still validates on save. The new length shows immediately and reverts if saving fails.
+  function startResize(event: ReactPointerEvent<HTMLSpanElement>, shift: Shift, edge: "start" | "end") {
+    event.preventDefault();
+    event.stopPropagation();
+    const handle = event.currentTarget;
+    const grid = handle.closest(".track-grid")!.getBoundingClientRect();
+    const others = data.data!.shifts.filter((other) => other.id !== shift.id && other.staff_id === shift.staff_id && other.day === shift.day);
+    const min = edge === "start" ? Math.max(540, ...others.filter((other) => other.end <= shift.start).map((other) => other.end)) : shift.start + 30;
+    const max = edge === "start" ? shift.end - 30 : Math.min(1320, ...others.filter((other) => other.start >= shift.end).map((other) => other.start));
+    let next = { id: shift.id, start: shift.start, end: shift.end };
+    handle.setPointerCapture(event.pointerId);
+    const move = (moved: PointerEvent) => {
+      const minute = 540 + Math.round(((moved.clientY - grid.top) / grid.height) * 26) * 30;
+      next = { ...next, [edge]: Math.min(max, Math.max(min, minute)) };
+      setAdjust(next);
+    };
+    const finish = async (save: boolean) => {
+      handle.removeEventListener("pointermove", move);
+      handle.removeEventListener("pointerup", up);
+      handle.removeEventListener("pointercancel", cancel);
+      if (!save || (next.start === shift.start && next.end === shift.end)) {
+        setAdjust(null);
+        return;
+      }
+      try {
+        await api(`/shifts/${shift.id}`, "PUT", { staff_id: shift.staff_id, day: shift.day, start: next.start, end: next.end, role: shift.role });
+        await data.refresh();
+        notice(`근무 시간을 ${time(next.start)}–${time(next.end)}로 바꿨어요.`);
+      } catch (error) {
+        notice(error instanceof Error ? error.message : "근무를 저장하지 못했습니다.");
+      } finally {
+        setAdjust(null);
+      }
+    };
+    const up = () => void finish(true);
+    const cancel = () => void finish(false);
+    handle.addEventListener("pointermove", move);
+    handle.addEventListener("pointerup", up);
+    handle.addEventListener("pointercancel", cancel);
+  }
   const selectedShift = data.data?.shifts.find((shift) => shift.id === selectedId);
   const pending = new Map<number, number>();
   for (const issue of issues.data ?? []) {
@@ -261,7 +309,7 @@ export default function Schedule({
                   </div>
                   {dates.map((date, index) => {
                     const placed = layout(
-                      data.data!.shifts.filter((shift) => shift.day === date),
+                      visibleShifts.filter((shift) => shift.day === date),
                     );
                     return (
                       <section
@@ -277,8 +325,15 @@ export default function Schedule({
                           </span>
                         </h3>
                         <div
-                          className="track-grid"
+                          className={`track-grid ${admin ? "can-add" : ""}`}
                           style={{ "--lanes": placed.lanes } as CSSProperties}
+                          title={admin ? "빈 곳을 눌러 근무 추가" : undefined}
+                          onClick={admin ? (event) => {
+                            if ((event.target as HTMLElement).closest(".worker")) return;
+                            const rect = event.currentTarget.getBoundingClientRect();
+                            const start = Math.min(1290, 540 + Math.floor(((event.clientY - rect.top) / rect.height) * 26) * 30);
+                            setEditor({ draft: { day: date, start, end: Math.min(1320, start + 60) } });
+                          } : undefined}
                         >
                           {placed.entries.map((shift) => {
                             const name =
@@ -305,6 +360,15 @@ export default function Schedule({
                                 }}
                               >
                                 <strong>{name}</strong>
+                                {admin && (["start", "end"] as const).map((edge) => (
+                                  <span
+                                    key={edge}
+                                    className={`resize-handle ${edge}`}
+                                    aria-hidden="true"
+                                    onPointerDown={(event) => startResize(event, data.data!.shifts.find((entry) => entry.id === shift.id)!, edge)}
+                                    onClick={(event) => event.stopPropagation()}
+                                  />
+                                ))}
                                 {requests > 0 && (
                                   <span className="shift-change-badge">
                                     <span className="change-badge-label">변경 요청</span>
@@ -450,6 +514,7 @@ export default function Schedule({
           week={data.data}
           shift={editor.shift}
           issue={editor.issue}
+          draft={editor.draft}
           onClose={() => setEditor(null)}
           onSaved={async () => {
             await Promise.all([data.refresh(), refreshIssues()]);
@@ -656,6 +721,7 @@ function ShiftEditor({
   week,
   shift,
   issue,
+  draft,
   confirmed = false,
   onClose,
   onSaved,
@@ -663,6 +729,7 @@ function ShiftEditor({
   week: Week;
   shift?: Shift;
   issue?: Issue;
+  draft?: Draft;
   confirmed?: boolean;
   onClose: () => void;
   onSaved: () => Promise<void>;
@@ -680,10 +747,12 @@ function ShiftEditor({
             end: minutes(value(form, "end")),
             role: value(form, "role"),
           };
+          const day = confirmed ? addDays(week.week, numeric(form, "weekday") - 1) : value(form, "day");
+          if (entry.end <= entry.start) throw new Error("종료 시각은 시작 시각보다 늦어야 합니다.");
+          if (overlaps(week.shifts, { ...entry, day }, shift?.id)) throw new Error("같은 사람의 근무 시간이 겹칩니다.");
           if (confirmed) {
             await api("/schedule/original", "PUT", { shifts: [...week.shifts.filter((item) => item.id !== shift?.id).map(toConfirmed), { ...entry, weekday: numeric(form, "weekday") }] });
           } else {
-            const day = value(form, "day");
             await api(issue ? `/issues/${issue.id}/apply` : shift ? `/shifts/${shift.id}` : "/shifts", issue || !shift ? "POST" : "PUT", { ...entry, day });
           }
           onClose();
@@ -710,7 +779,7 @@ function ShiftEditor({
           </Field>
         ) : (
           <Field label="날짜">
-            <input name="day" type="date" required defaultValue={shift?.day ?? week.week} />
+            <input name="day" type="date" required defaultValue={shift?.day ?? draft?.day ?? week.week} />
           </Field>
         )}
         <Field label="근무자">
@@ -741,7 +810,7 @@ function ShiftEditor({
             max="21:30"
             step={1800}
             required
-            defaultValue={time(shift?.start ?? 540)}
+            defaultValue={time(shift?.start ?? draft?.start ?? 540)}
           />
         </Field>
         <Field label="종료 시각">
@@ -752,7 +821,7 @@ function ShiftEditor({
             max="22:00"
             step={1800}
             required
-            defaultValue={time(shift?.end ?? 600)}
+            defaultValue={time(shift?.end ?? draft?.end ?? 600)}
           />
         </Field>
         {shift && !issue && (
