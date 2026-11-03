@@ -243,7 +243,7 @@ function Workspace({ user, onLogout }: { user: User; onLogout: () => void }) {
           />
         )}
         {view === "schedule" && (
-          <Schedule user={user} onIssuesChange={issues.refresh} />
+          <Schedule user={user} />
         )}
         {view === "people" && <People user={user} />}
         {view === "issues" && <Issues resource={issues} user={user} />}

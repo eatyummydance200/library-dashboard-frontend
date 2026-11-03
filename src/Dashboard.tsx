@@ -173,7 +173,6 @@ export default function Dashboard({
       </section>
       {addingIssue && (
         <IssueEditor
-          user={user}
           day={day}
           onClose={() => setAddingIssue(false)}
           onSaved={async () => {

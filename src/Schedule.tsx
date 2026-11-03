@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import type { CSSProperties, PointerEvent as ReactPointerEvent } from "react";
 import { api, useResource } from "./api";
-import type { ConfirmedTable, Issue, OriginalWeek, Shift, User, Week, WeeklyHours } from "./types";
+import type { ConfirmedShift, ConfirmedTable, OriginalWeek, Shift, User, Week, WeeklyHours } from "./types";
 import {
   addDays,
   days,
@@ -24,8 +24,6 @@ import {
   useNotice,
   value,
 } from "./ui";
-import { IssueList } from "./Issues";
-import ShiftIssueEditor from "./ShiftIssueEditor";
 
 function weekdayOf(day: string) {
   return ((new Date(`${day}T00:00:00Z`).getUTCDay() + 6) % 7) + 1;
@@ -41,6 +39,18 @@ type Draft = Pick<Shift, "day" | "start" | "end">;
 function overlaps(shifts: Shift[], entry: Omit<Shift, "id" | "role">, exclude?: number) {
   return shifts.some((other) => other.id !== exclude && other.staff_id === entry.staff_id &&
     other.day === entry.day && other.start < entry.end && other.end > entry.start);
+}
+// Match a day's shifts against the confirmed table: shifts with no identical confirmed entry are
+// changed, and confirmed entries left unmatched are missing from the week.
+function compare(shifts: Shift[], confirmed: ConfirmedShift[]) {
+  const left = [...confirmed];
+  const changed = new Set<number>();
+  for (const shift of shifts) {
+    const index = left.findIndex((entry) => entry.staff_id === shift.staff_id && entry.start === shift.start && entry.end === shift.end && entry.role === shift.role);
+    if (index < 0) changed.add(shift.id);
+    else left.splice(index, 1);
+  }
+  return { changed, missing: left };
 }
 function layout(entries: Shift[]) {
   const result: (Shift & { lane: number })[] = [];
@@ -59,73 +69,28 @@ function layout(entries: Shift[]) {
   }
   return { entries: result, lanes };
 }
-export default function Schedule({
-  user,
-  onIssuesChange,
-}: {
-  user: User;
-  onIssuesChange: () => Promise<void>;
-}) {
+export default function Schedule({ user }: { user: User }) {
   const [week, setWeek] = useState(monday());
   const data = useResource<Week>(`/schedule?week=${week}`);
   const table = useResource<ConfirmedTable>("/schedule/original");
   const original = { ...table, data: table.data && onWeek(table.data, week) };
   const hours = useResource<{ overrides: WeeklyHours[] }>("/schedule/hours");
   const [editingHours, setEditingHours] = useState<number | null>(null);
-  const issues = useResource<Issue[]>(
-    `/issues?category=${encodeURIComponent("근무 변경")}&week=${week}`,
-  );
   const [clock, setClock] = useState(koreaParts());
   const [day, setDay] = useState(
     Math.min((new Date(`${today()}T00:00:00Z`).getUTCDay() + 6) % 7, 4),
   );
   const [person, setPerson] = useState("");
-  const [filter, setFilter] = useState("open");
-  const [addingIssue, setAddingIssue] = useState<{ shift?: Shift } | null>(null);
-  const [editor, setEditor] = useState<{ shift?: Shift; issue?: Issue; draft?: Draft } | null>(null);
+  const [editor, setEditor] = useState<{ shift?: Shift; draft?: Draft } | null>(null);
   const [adjust, setAdjust] = useState<{ id: number; start: number; end: number } | null>(null);
-  const [selectedId, setSelectedId] = useState<number | null>(null);
-  const [focus, setFocus] = useState<{ id: number } | null>(null);
-  const handledFocus = useRef<typeof focus>(null);
-  const board = useRef<HTMLDivElement>(null);
   const [copying, setCopying] = useState(false);
   const admin = user.role === "admin";
   const notice = useNotice();
-  async function refreshIssues() {
-    await Promise.all([issues.refresh(), onIssuesChange()]);
-  }
-  function locate(issue: Issue) {
-    if (issue.shift_id == null) return;
-    const date = issue.current_day ?? issue.day;
-    setSelectedId(null);
-    setWeek(monday(date));
-    setDay((new Date(`${date}T00:00:00Z`).getUTCDay() + 6) % 7);
-    setPerson("");
-    setFocus({ id: issue.shift_id });
-  }
-  function apply(issue: Issue) {
-    const shift = data.data?.shifts.find((entry) => entry.id === issue.shift_id);
-    if (!shift) {
-      notice("연결된 근무가 현재 주에 없습니다. 근무표에서 위치를 확인해주세요.");
-      return;
-    }
-    setSelectedId(null);
-    setEditor({ shift, issue });
-  }
-  useEffect(() => {
-    if (!focus || handledFocus.current === focus) return;
-    const target = board.current?.querySelector<HTMLButtonElement>(`[data-shift-id="${focus.id}"]`);
-    if (!target) return;
-    target.scrollIntoView({ block: "center", behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
-    target.focus({ preventScroll: true });
-    handledFocus.current = focus;
-  }, [focus, data.data, day]);
   useEffect(() => {
     const refresh = () => {
       if (!document.hidden) {
         setClock(koreaParts());
         void data.refresh();
-        void issues.refresh();
         void table.refresh();
         void hours.refresh();
       }
@@ -136,7 +101,7 @@ export default function Schedule({
       clearInterval(timer);
       document.removeEventListener("visibilitychange", refresh);
     };
-  }, [data.refresh, issues.refresh, table.refresh, hours.refresh]);
+  }, [data.refresh, table.refresh, hours.refresh]);
   const dates = days.map((_, index) => addDays(week, index));
   const visibleShifts = data.data?.shifts.map((shift) => shift.id === adjust?.id ? { ...shift, start: adjust.start, end: adjust.end } : shift) ?? [];
   // Drag a handle to resize a shift. Bounds are checked here so an invalid length can't be produced;
@@ -180,13 +145,8 @@ export default function Schedule({
     handle.addEventListener("pointerup", up);
     handle.addEventListener("pointercancel", cancel);
   }
-  const selectedShift = data.data?.shifts.find((shift) => shift.id === selectedId);
-  const pending = new Map<number, number>();
-  for (const issue of issues.data ?? []) {
-    if (!issue.done && issue.shift_id != null) {
-      pending.set(issue.shift_id, (pending.get(issue.shift_id) ?? 0) + 1);
-    }
-  }
+  // Compare only once the week has shifts; an empty week hasn't been copied from the table yet.
+  const comparing = !!table.data?.saved && !!data.data?.shifts.length;
   const todayKey = `${clock.year}-${clock.month}-${clock.day}`;
   const minute = Number(clock.hour) * 60 + Number(clock.minute);
   const slot =
@@ -195,7 +155,6 @@ export default function Schedule({
       : -1;
   return (
     <section className="view schedule-workspace" aria-label="주간 시간표">
-      <div className="schedule-row">
       <div className="compact-schedule">
         <div className="card schedule-only">
           <div className="card-head schedule-head">
@@ -230,7 +189,8 @@ export default function Schedule({
                 <i />
                 대기
               </span>
-              <span className="change-legend"><i />변경 요청</span>
+              <span className="changed-legend"><i />확정표와 다름</span>
+              <span className="missing-legend"><i />확정표에서 빠짐</span>
             </div>
             <div className="schedule-filters">
               {admin && (
@@ -287,7 +247,6 @@ export default function Schedule({
               <ResourceError error={data.error} retry={data.refresh} />
               <div className="table-inset schedule-table">
                 <div
-                  ref={board}
                   className="week-board"
                   style={{ "--slot-count": 26 } as CSSProperties}
                   aria-label="30분 단위 주간 근무 시간표"
@@ -308,9 +267,12 @@ export default function Schedule({
                     </div>
                   </div>
                   {dates.map((date, index) => {
-                    const placed = layout(
-                      visibleShifts.filter((shift) => shift.day === date),
-                    );
+                    const dayShifts = visibleShifts.filter((shift) => shift.day === date);
+                    const { changed, missing } = comparing
+                      ? compare(dayShifts, table.data!.shifts.filter((entry) => entry.weekday === index + 1))
+                      : { changed: new Set<number>(), missing: [] };
+                    // Missing confirmed shifts are drawn as ghosts with negative ids.
+                    const placed = layout([...dayShifts, ...missing.map(({ weekday: _, ...entry }) => ({ ...entry, id: -entry.id, day: date }))]);
                     return (
                       <section
                         key={date}
@@ -341,23 +303,30 @@ export default function Schedule({
                                 (person) => person.id === shift.staff_id,
                               )?.name ?? "근무자";
                             const span = (shift.end - shift.start) / 30;
-                            const requests = pending.get(shift.id) ?? 0;
                             const label = `${name} · ${time(shift.start)}–${time(shift.end)} · ${shift.role === "desk" ? "데스크" : "대기"}`;
+                            const position = { gridRow: `${(shift.start - 540) / 30 + 1}/span ${span}`, gridColumn: shift.lane + 1 };
+                            if (shift.id < 0) return (
+                              <div
+                                key={shift.id}
+                                className={`worker ghost ${span === 1 ? "short-shift" : ""} ${person && person !== String(shift.staff_id) ? "dimmed" : ""}`}
+                                style={position}
+                                title={`확정표에서 빠짐 · ${label}`}
+                                aria-label={`확정표에서 빠짐 · ${label}`}
+                              >
+                                <strong>{name}</strong>
+                              </div>
+                            );
+                            const differs = changed.has(shift.id) ? " · 확정표와 다름" : "";
                             return (
                               <button
                                 key={shift.id}
                                 type="button"
                                 data-shift-id={shift.id}
-                                className={`worker ${shift.role === "desk" ? "desk" : "standby"} ${span === 1 ? "short-shift" : ""} ${person && person !== String(shift.staff_id) ? "dimmed" : ""} ${requests ? "has-change" : ""} ${focus?.id === shift.id ? "is-focused" : ""}`}
-                                style={{
-                                  gridRow: `${(shift.start - 540) / 30 + 1}/span ${span}`,
-                                  gridColumn: shift.lane + 1,
-                                }}
-                                title={`${label}${requests ? ` · 변경 요청 ${requests}건` : ""}`}
-                                aria-label={`${label}${requests ? ` · 변경 요청 ${requests}건` : ""} · 상세 보기`}
-                                onClick={() => {
-                                  setSelectedId(shift.id);
-                                }}
+                                className={`worker ${shift.role === "desk" ? "desk" : "standby"} ${span === 1 ? "short-shift" : ""} ${person && person !== String(shift.staff_id) ? "dimmed" : ""} ${differs ? "changed" : ""}`}
+                                style={position}
+                                title={`${label}${differs}`}
+                                aria-label={`${label}${differs}${admin ? " · 근무 수정" : ""}`}
+                                onClick={admin ? () => setEditor({ shift: data.data!.shifts.find((entry) => entry.id === shift.id) }) : undefined}
                               >
                                 <strong>{name}</strong>
                                 {admin && (["start", "end"] as const).map((edge) => (
@@ -369,12 +338,6 @@ export default function Schedule({
                                     onClick={(event) => event.stopPropagation()}
                                   />
                                 ))}
-                                {requests > 0 && (
-                                  <span className="shift-change-badge">
-                                    <span className="change-badge-label">변경 요청</span>
-                                    {requests > 1 && <span>{requests}</span>}
-                                  </span>
-                                )}
                               </button>
                             );
                           })}
@@ -411,39 +374,6 @@ export default function Schedule({
           )}
         </div>
       </div>
-        <section className="card shift-issues-card" aria-label="근무 변경 이슈">
-          <div className="card-head">
-            <h2>근무 변경 이슈</h2>
-            <button className="btn" onClick={() => setAddingIssue({})}>
-              등록
-            </button>
-          </div>
-          <div className="shift-issue-tools">
-            <select
-              className="select"
-              aria-label="근무 변경 이슈 상태"
-              value={filter}
-              onChange={(event) => setFilter(event.target.value)}
-            >
-              <option value="open">진행 중</option>
-              <option value="done">완료</option>
-              <option value="all">전체</option>
-            </select>
-            <span className="hint">
-              {weekLabel(week)}
-            </span>
-          </div>
-          <IssueList
-            user={user}
-            resource={issues}
-            filter={filter}
-            compact
-            onChanged={onIssuesChange}
-            onSelect={locate}
-            onApply={apply}
-          />
-        </section>
-      </div>
       <div className="schedule-row">
         {original.data ? <ConfirmedSchedule key={week} week={original.data} current={data.error ? undefined : data.data} admin={admin} error={original.error} onSaved={async () => { await Promise.all([original.refresh(), hours.refresh()]); }} /> : (
           <section className="card">
@@ -479,46 +409,14 @@ export default function Schedule({
           onSaved={hours.refresh}
         />
       )}
-      {selectedShift && data.data && (
-        <Modal title="근무 상세 · 변경 요청" onClose={() => setSelectedId(null)}>
-          <p className="shift-detail-summary">
-            <strong>{data.data.staff.find((person) => person.id === selectedShift.staff_id)?.name ?? "근무자"}</strong>
-            {` · ${selectedShift.day} · ${time(selectedShift.start)}–${time(selectedShift.end)}`}
-            {` · ${selectedShift.role === "desk" ? "데스크" : "대기"}`}
-          </p>
-          <div className="shift-detail-actions">
-            {(admin || user.staff_id === selectedShift.staff_id) && (
-              <button className="btn primary" onClick={() => {
-                setAddingIssue({ shift: selectedShift });
-                setSelectedId(null);
-              }}>변경 요청 등록</button>
-            )}
-            {admin && <button className="btn" onClick={() => {
-              setEditor({ shift: selectedShift });
-              setSelectedId(null);
-            }}>근무 수정</button>}
-          </div>
-          <IssueList
-            user={user}
-            resource={{ ...issues, data: issues.data?.filter((issue) => issue.shift_id === selectedShift.id) }}
-            filter="all"
-            compact
-            onChanged={onIssuesChange}
-            onApply={apply}
-          />
-        </Modal>
-      )}
       {editor && data.data && (
         <ShiftEditor
           key={editor.shift?.id ?? "new"}
           week={data.data}
           shift={editor.shift}
-          issue={editor.issue}
           draft={editor.draft}
           onClose={() => setEditor(null)}
-          onSaved={async () => {
-            await Promise.all([data.refresh(), refreshIssues()]);
-          }}
+          onSaved={data.refresh}
         />
       )}
       {copying && (
@@ -535,7 +433,7 @@ export default function Schedule({
                 result = await api<CopyResult>("/schedule/original/copy", "POST", { target, overwrite: true });
               }
               setCopying(false);
-              await Promise.all([data.refresh(), onIssuesChange()]);
+              await data.refresh();
               notice(`${result.count}개 확정 근무를 주간표에 붙여넣었어요.${result.skipped ? ` 퇴직한 근무자의 근무 ${result.skipped}개는 제외했어요.` : ""}`);
             }}
           >
@@ -545,15 +443,6 @@ export default function Schedule({
             <p className="hint">확정표의 요일과 시간을 대상 주에 복사합니다. 대상 주에 근무가 있으면 덮어쓸지 묻습니다. 퇴직한 근무자의 근무는 제외합니다.</p>
           </Form>
         </Modal>
-      )}
-      {addingIssue && (
-        <ShiftIssueEditor
-          user={user}
-          shift={addingIssue.shift}
-          day={today() >= week && today() <= dates[4] ? today() : week}
-          onClose={() => setAddingIssue(null)}
-          onSaved={refreshIssues}
-        />
       )}
     </section>
   );
@@ -749,7 +638,6 @@ function TimeSelect({ name, label, initial, min, max }: { name: string; label: s
 function ShiftEditor({
   week,
   shift,
-  issue,
   draft,
   confirmed = false,
   onClose,
@@ -757,7 +645,6 @@ function ShiftEditor({
 }: {
   week: Week;
   shift?: Shift;
-  issue?: Issue;
   draft?: Draft;
   confirmed?: boolean;
   onClose: () => void;
@@ -765,10 +652,10 @@ function ShiftEditor({
 }) {
   const notice = useNotice();
   return (
-    <Modal title={confirmed ? (shift ? "확정 근무 수정" : "확정 근무 추가") : issue ? "변경 반영 및 완료" : shift ? "근무 수정" : "근무 추가"} onClose={onClose}>
+    <Modal title={confirmed ? (shift ? "확정 근무 수정" : "확정 근무 추가") : shift ? "근무 수정" : "근무 추가"} onClose={onClose}>
       <Form
         onClose={onClose}
-        submit={issue ? "변경 반영 및 완료" : "저장하기"}
+        submit="저장하기"
         onSave={async (form) => {
           const entry = {
             staff_id: numeric(form, "staff_id"),
@@ -782,24 +669,13 @@ function ShiftEditor({
           if (confirmed) {
             await api("/schedule/original", "PUT", { shifts: [...week.shifts.filter((item) => item.id !== shift?.id).map(toConfirmed), { ...entry, weekday: numeric(form, "weekday") }] });
           } else {
-            await api(issue ? `/issues/${issue.id}/apply` : shift ? `/shifts/${shift.id}` : "/shifts", issue || !shift ? "POST" : "PUT", { ...entry, day });
+            await api(shift ? `/shifts/${shift.id}` : "/shifts", shift ? "PUT" : "POST", { ...entry, day });
           }
           onClose();
           await onSaved();
-          notice(issue ? "근무표에 반영하고 요청을 완료했어요." : "근무를 저장했어요.");
+          notice("근무를 저장했어요.");
         }}
       >
-        {issue && (
-          <div className="shift-request-summary">
-            <strong>{issue.title}</strong>
-            {issue.shift_start != null && issue.shift_end != null && (
-              <p className="hint">
-                요청 당시: {issue.shift_name} · {issue.day} · {time(issue.shift_start)}–{time(issue.shift_end)}
-              </p>
-            )}
-            <p>{issue.body}</p>
-          </div>
-        )}
         {confirmed ? (
           <Field label="요일">
             <select name="weekday" defaultValue={shift ? weekdayOf(shift.day) : 1}>
@@ -833,7 +709,7 @@ function ShiftEditor({
         </Field>
         <TimeSelect name="start" label="시작 시각" initial={shift?.start ?? draft?.start ?? 540} min={540} max={1290} />
         <TimeSelect name="end" label="종료 시각" initial={shift?.end ?? draft?.end ?? 600} min={570} max={1320} />
-        {shift && !issue && (
+        {shift && (
           <Action
             className="btn danger"
             run={async () => {

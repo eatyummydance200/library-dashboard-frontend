@@ -76,13 +76,6 @@ export interface Issue {
   author_id: number;
   done: number;
   created_at: string;
-  shift_id?: number | null;
-  shift_staff_id?: number | null;
-  shift_name?: string | null;
-  shift_start?: number | null;
-  shift_end?: number | null;
-  shift_role?: Shift["role"] | null;
-  current_day?: string | null;
 }
 export interface TaggingData {
   year: number;

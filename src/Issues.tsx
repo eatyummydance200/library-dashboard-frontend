@@ -1,8 +1,7 @@
 import { useEffect, useState } from "react";
 import { api, useResource } from "./api";
 import type { Issue, User } from "./types";
-import { addDays, days, monday, shortDay, today, time, weekLabel } from "./dates";
-import ShiftIssueEditor from "./ShiftIssueEditor";
+import { addDays, days, monday, shortDay, today, weekLabel } from "./dates";
 import {
   Action,
   Field,
@@ -76,7 +75,6 @@ export default function Issues({ resource, user }: { resource: IssuesResource; u
       </section>
       {adding && (
         <IssueEditor
-          user={user}
           day={today() >= week && today() <= addDays(week, 4) ? today() : week}
           onClose={() => setAdding(false)}
           onSaved={async () => {
@@ -115,21 +113,15 @@ export function TodayIssues({ resource, user, onChanged }: {
 export function IssueList({
   resource,
   filter,
-  compact = false,
   onChanged,
   user,
-  onSelect,
-  onApply,
   titlesOnly = false,
   showDate = true,
 }: {
   resource: IssuesResource;
   filter: string;
-  compact?: boolean;
   onChanged?: () => Promise<void>;
   user: User;
-  onSelect?: (issue: Issue) => void;
-  onApply?: (issue: Issue) => void;
   titlesOnly?: boolean;
   showDate?: boolean;
 }) {
@@ -141,17 +133,14 @@ export function IssueList({
   return (
     <>
       <ResourceError error={resource.error} retry={resource.refresh} />
-      <div className={compact ? "" : "issue-list"}>
+      <div className="issue-list">
         {visible.map((issue) => {
           const content = (
             <IssueContent
               issue={issue}
               user={user}
               showTitle={!titlesOnly}
-              showCategory={!compact}
               showDate={showDate}
-              onSelect={onSelect}
-              onApply={onApply}
               onChanged={async () => {
                 await resource.refresh();
                 await onChanged?.();
@@ -164,7 +153,7 @@ export function IssueList({
               <div className="issue-entry issue-expanded-content">{content}</div>
             </details>
           ) : (
-            <article key={issue.id} className={compact ? "shift-issue-entry" : "issue-entry"}>
+            <article key={issue.id} className="issue-entry">
               {content}
             </article>
           );
@@ -180,19 +169,13 @@ function IssueContent({
   issue,
   user,
   showTitle,
-  showCategory,
   showDate,
-  onSelect,
-  onApply,
   onChanged,
 }: {
   issue: Issue;
   user: User;
   showTitle: boolean;
-  showCategory: boolean;
   showDate: boolean;
-  onSelect?: (issue: Issue) => void;
-  onApply?: (issue: Issue) => void;
   onChanged: () => Promise<void>;
 }) {
   const [editing, setEditing] = useState(false);
@@ -207,22 +190,8 @@ function IssueContent({
           </span>
           {showDate && <time dateTime={issue.day}>{issue.day}</time>}
         </div>
-        {showTitle && <h3>{showCategory && <><span className="issue-title-category">{issue.category}</span>{" "}</>}{issue.title}</h3>}
-        {issue.shift_start != null && issue.shift_end != null && (
-          <p className="shift-issue-reference">
-            {issue.shift_name} · {showDate && `${issue.day} · `}{time(issue.shift_start)}–{time(issue.shift_end)}
-            {` · ${issue.shift_role === "desk" ? "데스크" : "대기"}`}
-          </p>
-        )}
+        {showTitle && <h3><span className="issue-title-category">{issue.category}</span>{" "}{issue.title}</h3>}
         <p>{issue.body}</p>
-        {issue.shift_start != null && issue.shift_id == null && (
-          <p className="hint">연결된 근무가 삭제되었습니다.</p>
-        )}
-        {onSelect && issue.shift_id != null && (
-          <button type="button" className="text-btn shift-issue-link" onClick={() => onSelect(issue)}>
-            근무표에서 보기
-          </button>
-        )}
       </div>
       <div className="shift-issue-actions">
         {editable && (
@@ -230,24 +199,15 @@ function IssueContent({
             수정
           </button>
         )}
-        {user.role === "admin" && !issue.done && issue.shift_id != null && onApply && (
-          <button type="button" className="text-btn" onClick={() => onApply(issue)}>
-            변경 반영
-          </button>
-        )}
-        {(issue.shift_start == null || user.role === "admin") && (
-          <Action
-            className="btn"
-            run={async () => {
-              if (issue.shift_start != null && !issue.done &&
-                !confirm("근무표 반영 여부를 확인했나요? 이 요청을 완료 처리합니다.")) return;
-              await api(`/issues/${issue.id}`, "PATCH", { done: !issue.done });
-              await onChanged();
-            }}
-          >
-            {issue.done ? "다시 열기" : "완료하기"}
-          </Action>
-        )}
+        <Action
+          className="btn"
+          run={async () => {
+            await api(`/issues/${issue.id}`, "PATCH", { done: !issue.done });
+            await onChanged();
+          }}
+        >
+          {issue.done ? "다시 열기" : "완료하기"}
+        </Action>
         {deletable && (
           <Action
             className="text-btn"
@@ -261,12 +221,11 @@ function IssueContent({
           </Action>
         )}
       </div>
-      {editing && <IssueEditor user={user} issue={issue} onClose={() => setEditing(false)} onSaved={onChanged} />}
+      {editing && <IssueEditor issue={issue} onClose={() => setEditing(false)} onSaved={onChanged} />}
     </>
   );
 }
 export function IssueEditor({
-  user,
   onClose,
   onSaved,
   day = today(),
@@ -277,51 +236,34 @@ export function IssueEditor({
   onSaved: () => Promise<void>;
   day?: string;
   category?: string;
-  user: User;
   issue?: Issue;
 }) {
   const notice = useNotice();
   const [category, setCategory] = useState(issue?.category ?? initialCategory);
   const [selectedDay, setSelectedDay] = useState(issue?.day ?? day);
-  // A shift change request keeps its shift, day and category; only its text can be edited.
-  const request = issue?.shift_start != null;
-  if (!issue && category === "근무 변경") {
-    return <ShiftIssueEditor user={user} day={selectedDay} onClose={onClose} onSaved={onSaved} />;
-  }
   return (
-    <Modal title={issue ? (request ? "근무 변경 요청 수정" : "이슈 수정") : "새 이슈 남기기"} onClose={onClose}>
+    <Modal title={issue ? "이슈 수정" : "새 이슈 남기기"} onClose={onClose}>
       <Form
         onClose={onClose}
         submit={issue ? "저장하기" : "등록하기"}
         onSave={async (data) => {
-          const body = Object.fromEntries(
-            (request ? ["title", "body"] : ["day", "category", "title", "body"]).map((key) => [key, value(data, key)]),
-          );
+          const body = Object.fromEntries(["day", "category", "title", "body"].map((key) => [key, value(data, key)]));
           await (issue ? api(`/issues/${issue.id}`, "PUT", body) : api("/issues", "POST", body));
           onClose();
           await onSaved();
           notice(issue ? "이슈를 수정했어요." : "이슈를 등록했어요.");
         }}
       >
-        {request ? (
-          <p className="shift-issue-reference">
-            {issue.shift_name} · {issue.day}
-            {issue.shift_start != null && issue.shift_end != null && ` · ${time(issue.shift_start)}–${time(issue.shift_end)}`}
-          </p>
-        ) : (
-          <>
-            <Field label="해당 날짜">
-              <input name="day" type="date" required value={selectedDay} onChange={(event) => setSelectedDay(event.target.value)} />
-            </Field>
-            <Field label="구분">
-              <select name="category" value={category} onChange={(event) => setCategory(event.target.value)}>
-                {["인계", "공지", "시설", ...(issue ? [] : ["근무 변경"])].map((category) => (
-                  <option key={category}>{category}</option>
-                ))}
-              </select>
-            </Field>
-          </>
-        )}
+        <Field label="해당 날짜">
+          <input name="day" type="date" required value={selectedDay} onChange={(event) => setSelectedDay(event.target.value)} />
+        </Field>
+        <Field label="구분">
+          <select name="category" value={category} onChange={(event) => setCategory(event.target.value)}>
+            {["인계", "공지", "시설"].map((category) => (
+              <option key={category}>{category}</option>
+            ))}
+          </select>
+        </Field>
         <Field label="제목">
           <input name="title" required maxLength={80} defaultValue={issue?.title} />
         </Field>
