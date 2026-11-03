@@ -37,6 +37,14 @@ export interface Week {
 export interface OriginalWeek extends Week {
   saved: boolean;
 }
+export interface ConfirmedShift extends Omit<Shift, "day"> {
+  weekday: number;
+}
+export interface ConfirmedTable {
+  saved: boolean;
+  staff: Staff[];
+  shifts: ConfirmedShift[];
+}
 export interface WeeklyHours {
   staff_id: number;
   total_minutes: number;

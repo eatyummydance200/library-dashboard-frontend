@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import { api, useResource } from "./api";
-import type { Issue, OriginalWeek, Shift, User, Week, WeeklyHours } from "./types";
+import type { ConfirmedTable, Issue, OriginalWeek, Shift, User, Week, WeeklyHours } from "./types";
 import {
   addDays,
   days,
@@ -27,6 +27,16 @@ import {
 import { IssueList } from "./Issues";
 import ShiftIssueEditor from "./ShiftIssueEditor";
 
+function weekdayOf(day: string) {
+  return ((new Date(`${day}T00:00:00Z`).getUTCDay() + 6) % 7) + 1;
+}
+// The confirmed table is one weekday template; render it on the dates of the week being viewed.
+function onWeek(table: ConfirmedTable, week: string): OriginalWeek {
+  return { week, saved: table.saved, staff: table.staff, shifts: table.shifts.map(({ weekday, ...shift }) => ({ ...shift, day: addDays(week, weekday - 1) })) };
+}
+function toConfirmed({ staff_id, day, start, end, role }: Shift) {
+  return { staff_id, weekday: weekdayOf(day), start, end, role };
+}
 function layout(entries: Shift[]) {
   const result: (Shift & { lane: number })[] = [];
   let lanes = 0;
@@ -53,8 +63,9 @@ export default function Schedule({
 }) {
   const [week, setWeek] = useState(monday());
   const data = useResource<Week>(`/schedule?week=${week}`);
-  const original = useResource<OriginalWeek>(`/schedule/original?week=${week}`);
-  const hours = useResource<{ overrides: WeeklyHours[] }>(`/schedule/hours?week=${week}`);
+  const table = useResource<ConfirmedTable>("/schedule/original");
+  const original = { ...table, data: table.data && onWeek(table.data, week) };
+  const hours = useResource<{ overrides: WeeklyHours[] }>("/schedule/hours");
   const [editingHours, setEditingHours] = useState<number | null>(null);
   const issues = useResource<Issue[]>(
     `/issues?category=${encodeURIComponent("근무 변경")}&week=${week}`,
@@ -109,7 +120,7 @@ export default function Schedule({
         setClock(koreaParts());
         void data.refresh();
         void issues.refresh();
-        void original.refresh();
+        void table.refresh();
         void hours.refresh();
       }
     };
@@ -119,7 +130,7 @@ export default function Schedule({
       clearInterval(timer);
       document.removeEventListener("visibilitychange", refresh);
     };
-  }, [data.refresh, issues.refresh, original.refresh, hours.refresh]);
+  }, [data.refresh, issues.refresh, table.refresh, hours.refresh]);
   const dates = days.map((_, index) => addDays(week, index));
   const selectedShift = data.data?.shifts.find((shift) => shift.id === selectedId);
   const pending = new Map<number, number>();
@@ -451,31 +462,22 @@ export default function Schedule({
             submit="주간표에 붙여넣기"
             onClose={() => setCopying(false)}
             onSave={async (form) => {
-              const result = await api<{ count: number }>(
-                "/schedule/original/copy",
-                "POST",
-                {
-                  source: value(form, "source"),
-                  target: value(form, "target"),
-                },
-              );
+              type CopyResult = { ok: boolean; existing?: number; count?: number; skipped?: number };
+              const target = value(form, "target");
+              let result = await api<CopyResult>("/schedule/original/copy", "POST", { target });
+              if (!result.ok) {
+                if (!confirm(`대상 주에 근무 ${result.existing}개가 있습니다. 모두 지우고 확정표로 덮어쓸까요?`)) return;
+                result = await api<CopyResult>("/schedule/original/copy", "POST", { target, overwrite: true });
+              }
               setCopying(false);
               await Promise.all([data.refresh(), onIssuesChange()]);
-              notice(`${result.count}개 확정 근무를 주간표에 붙여넣었어요.`);
+              notice(`${result.count}개 확정 근무를 주간표에 붙여넣었어요.${result.skipped ? ` 퇴직한 근무자의 근무 ${result.skipped}개는 제외했어요.` : ""}`);
             }}
           >
-            <Field label="복사할 확정표의 주에 속한 날짜">
-              <input
-                name="source"
-                type="date"
-                required
-                defaultValue={week}
-              />
-            </Field>
-            <Field label="대상 주에 속한 날짜">
+            <Field label="붙여넣을 주에 속한 날짜">
               <input name="target" type="date" required defaultValue={week} />
             </Field>
-            <p className="hint">확정표의 요일과 시간을 대상 주에 맞춰 복사합니다. 대상 주에 근무가 있으면 붙여넣지 않습니다.</p>
+            <p className="hint">확정표의 요일과 시간을 대상 주에 복사합니다. 대상 주에 근무가 있으면 덮어쓸지 묻습니다. 퇴직한 근무자의 근무는 제외합니다.</p>
           </Form>
         </Modal>
       )}
@@ -520,7 +522,7 @@ function ConfirmedSchedule({ week, current, admin, error, onSaved }: { week: Ori
             <button className="btn" disabled={!!error} onClick={() => setEditor({})}>추가</button>
             {!week.saved && <Action disabled={!current?.shifts.length || !!error} run={async () => {
               if (!current || !confirm("현재 주간 근무표를 최초 확정표로 저장할까요?")) return;
-              await api("/schedule/original", "PUT", { week: week.week, shifts: current.shifts });
+              await api("/schedule/original", "PUT", { shifts: current.shifts.map(toConfirmed) });
               await onSaved();
               notice("확정된 근무 시간표를 저장했어요.");
             }}>현재 주간표로 최초 확정</Action>}
@@ -631,7 +633,7 @@ function WeeklyHoursEditor({ week, person, override, onClose, onSaved }: {
         const total = numeric(form, "total") * 60;
         const desk = numeric(form, "desk") * 60;
         if (desk > total) throw new Error("데스크 시간은 총 근무 시간을 초과할 수 없습니다.");
-        await api(`/schedule/hours/${person}`, "PUT", { week: week.week, total_minutes: total, desk_minutes: desk, opens: numeric(form, "opens"), closes: numeric(form, "closes") });
+        await api(`/schedule/hours/${person}`, "PUT", { total_minutes: total, desk_minutes: desk, opens: numeric(form, "opens"), closes: numeric(form, "closes") });
         await onSaved();
         onClose();
         notice("주당 근무 시간을 조정했어요.");
@@ -641,7 +643,7 @@ function WeeklyHoursEditor({ week, person, override, onClose, onSaved }: {
         <Field label="오픈 (회)"><input name="opens" type="number" required min={0} max={5} step={1} defaultValue={initial.opens} /></Field>
         <Field label="마감 (회)"><input name="closes" type="number" required min={0} max={5} step={1} defaultValue={initial.closes} /></Field>
         {override && <Action run={async () => {
-          await api(`/schedule/hours/${person}?week=${week.week}`, "DELETE");
+          await api(`/schedule/hours/${person}`, "DELETE");
           await onSaved();
           onClose();
           notice("확정표 기준으로 되돌렸어요.");
@@ -674,16 +676,16 @@ function ShiftEditor({
         onSave={async (form) => {
           const entry = {
             staff_id: numeric(form, "staff_id"),
-            day: value(form, "day"),
             start: minutes(value(form, "start")),
             end: minutes(value(form, "end")),
             role: value(form, "role"),
           };
-          await api(
-            confirmed ? "/schedule/original" : issue ? `/issues/${issue.id}/apply` : shift ? `/shifts/${shift.id}` : "/shifts",
-            confirmed ? "PUT" : issue ? "POST" : shift ? "PUT" : "POST",
-            confirmed ? { week: week.week, shifts: [...week.shifts.filter((item) => item.id !== shift?.id), entry] } : entry,
-          );
+          if (confirmed) {
+            await api("/schedule/original", "PUT", { shifts: [...week.shifts.filter((item) => item.id !== shift?.id).map(toConfirmed), { ...entry, weekday: numeric(form, "weekday") }] });
+          } else {
+            const day = value(form, "day");
+            await api(issue ? `/issues/${issue.id}/apply` : shift ? `/shifts/${shift.id}` : "/shifts", issue || !shift ? "POST" : "PUT", { ...entry, day });
+          }
           onClose();
           await onSaved();
           notice(issue ? "근무표에 반영하고 요청을 완료했어요." : "근무를 저장했어요.");
@@ -700,16 +702,17 @@ function ShiftEditor({
             <p>{issue.body}</p>
           </div>
         )}
-        <Field label="날짜">
-          <input
-            name="day"
-            type="date"
-            required
-            min={confirmed ? week.week : undefined}
-            max={confirmed ? addDays(week.week, 4) : undefined}
-            defaultValue={shift?.day ?? week.week}
-          />
-        </Field>
+        {confirmed ? (
+          <Field label="요일">
+            <select name="weekday" defaultValue={shift ? weekdayOf(shift.day) : 1}>
+              {days.map((day, index) => <option key={day} value={index + 1}>{day}요일</option>)}
+            </select>
+          </Field>
+        ) : (
+          <Field label="날짜">
+            <input name="day" type="date" required defaultValue={shift?.day ?? week.week} />
+          </Field>
+        )}
         <Field label="근무자">
           <select name="staff_id" required defaultValue={shift?.staff_id}>
             {week.staff
@@ -758,7 +761,7 @@ function ShiftEditor({
             run={async () => {
               if (!confirm("이 근무를 삭제할까요?")) return;
               if (confirmed) {
-                await api("/schedule/original", "PUT", { week: week.week, shifts: week.shifts.filter((entry) => entry.id !== shift.id) });
+                await api("/schedule/original", "PUT", { shifts: week.shifts.filter((entry) => entry.id !== shift.id).map(toConfirmed) });
               } else {
                 await api(`/shifts/${shift.id}`, "DELETE");
               }
