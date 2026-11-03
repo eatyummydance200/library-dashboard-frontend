@@ -197,6 +197,7 @@ function IssueContent({
 }) {
   const [editing, setEditing] = useState(false);
   const editable = !issue.done && (user.role === "admin" || user.id === issue.author_id);
+  const deletable = user.role === "admin" || (!issue.done && user.id === issue.author_id);
   return (
     <>
       <div className="issue-body">
@@ -245,6 +246,18 @@ function IssueContent({
             }}
           >
             {issue.done ? "다시 열기" : "완료하기"}
+          </Action>
+        )}
+        {deletable && (
+          <Action
+            className="text-btn"
+            run={async () => {
+              if (!confirm("이 이슈를 삭제할까요? 되돌릴 수 없습니다.")) return;
+              await api(`/issues/${issue.id}`, "DELETE");
+              await onChanged();
+            }}
+          >
+            삭제
           </Action>
         )}
       </div>
