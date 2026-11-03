@@ -717,6 +717,35 @@ function WeeklyHoursEditor({ week, person, override, onClose, onSaved }: {
     </Modal>
   );
 }
+// 오전/오후 + 시 + 00·30분 선택. 오전은 9~11시, 오후는 0~10시만 고를 수 있다.
+function TimeSelect({ name, label, initial, min, max }: { name: string; label: string; initial: number; min: number; max: number }) {
+  const [minute, setMinute] = useState(initial);
+  const set = (next: number) => setMinute(Math.min(max, Math.max(min, next)));
+  const hour = Math.floor(minute / 60);
+  const half = minute % 60;
+  const pm = hour >= 12;
+  const hours = pm ? Array.from({ length: 11 }, (_, index) => 12 + index) : [9, 10, 11];
+  return (
+    <div className="field" role="group" aria-label={label}>
+      {label}
+      <input type="hidden" name={name} value={time(minute)} />
+      <div className="time-select">
+        <select aria-label={`${label} 오전/오후`} value={pm ? "pm" : "am"} onChange={(event) =>
+          set(event.target.value === "pm" ? Math.min(22, hour + 12) * 60 + half : Math.max(9, hour - 12) * 60 + half)}>
+          <option value="am">오전</option>
+          <option value="pm">오후</option>
+        </select>
+        <select aria-label={`${label} 시`} value={hour} onChange={(event) => set(Number(event.target.value) * 60 + half)}>
+          {hours.map((value) => <option key={value} value={value}>{pm ? value - 12 : value}시</option>)}
+        </select>
+        <select aria-label={`${label} 분`} value={half} onChange={(event) => set(hour * 60 + Number(event.target.value))}>
+          <option value={0}>00분</option>
+          <option value={30} disabled={hour * 60 + 30 > max}>30분</option>
+        </select>
+      </div>
+    </div>
+  );
+}
 function ShiftEditor({
   week,
   shift,
@@ -802,28 +831,8 @@ function ShiftEditor({
             <option value="general">대기 근무</option>
           </select>
         </Field>
-        <Field label="시작 시각">
-          <input
-            name="start"
-            type="time"
-            min="09:00"
-            max="21:30"
-            step={1800}
-            required
-            defaultValue={time(shift?.start ?? draft?.start ?? 540)}
-          />
-        </Field>
-        <Field label="종료 시각">
-          <input
-            name="end"
-            type="time"
-            min="09:30"
-            max="22:00"
-            step={1800}
-            required
-            defaultValue={time(shift?.end ?? draft?.end ?? 600)}
-          />
-        </Field>
+        <TimeSelect name="start" label="시작 시각" initial={shift?.start ?? draft?.start ?? 540} min={540} max={1290} />
+        <TimeSelect name="end" label="종료 시각" initial={shift?.end ?? draft?.end ?? 600} min={570} max={1320} />
         {shift && !issue && (
           <Action
             className="btn danger"

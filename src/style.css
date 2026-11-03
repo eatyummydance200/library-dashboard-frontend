@@ -39,3 +39,4 @@ fieldset {
 .resize-handle.start{top:0}
 .resize-handle.end{bottom:0}
 .worker:hover .resize-handle{background:#03499a1f}
+.time-select{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
