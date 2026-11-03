@@ -41,8 +41,5 @@ fieldset {
 .worker:hover .resize-handle{background:#03499a1f}
 .time-select{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
 .week-board .worker.changed{background:#ffecec;border:2px solid #d93838;color:#a11d1d}
-.week-board .worker.ghost{background:repeating-linear-gradient(135deg,#fff5f5 0,#fff5f5 6px,#ffe6e6 6px,#ffe6e6 12px);border:2px dashed #d93838;color:#a11d1d}
-.week-board .worker.ghost strong{text-decoration:line-through}
-.changed-legend i,.missing-legend i{display:inline-block;width:14px;height:14px;border-radius:3px;margin-right:6px;vertical-align:-2px}
+.changed-legend i{display:inline-block;width:14px;height:14px;border-radius:3px;margin-right:6px;vertical-align:-2px}
 .changed-legend i{background:#ffecec;border:2px solid #d93838}
-.missing-legend i{background:#fff5f5;border:2px dashed #d93838}

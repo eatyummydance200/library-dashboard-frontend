@@ -40,9 +40,8 @@ function overlaps(shifts: Shift[], entry: Omit<Shift, "id" | "role">, exclude?: 
   return shifts.some((other) => other.id !== exclude && other.staff_id === entry.staff_id &&
     other.day === entry.day && other.start < entry.end && other.end > entry.start);
 }
-// Match a day's shifts against the confirmed table: shifts with no identical confirmed entry are
-// changed, and confirmed entries left unmatched are missing from the week.
-function compare(shifts: Shift[], confirmed: ConfirmedShift[]) {
+// A day's shifts that have no identical confirmed entry (same staff, time and role) are changes.
+function changes(shifts: Shift[], confirmed: ConfirmedShift[]) {
   const left = [...confirmed];
   const changed = new Set<number>();
   for (const shift of shifts) {
@@ -50,7 +49,7 @@ function compare(shifts: Shift[], confirmed: ConfirmedShift[]) {
     if (index < 0) changed.add(shift.id);
     else left.splice(index, 1);
   }
-  return { changed, missing: left };
+  return changed;
 }
 function layout(entries: Shift[]) {
   const result: (Shift & { lane: number })[] = [];
@@ -189,8 +188,7 @@ export default function Schedule({ user }: { user: User }) {
                 <i />
                 대기
               </span>
-              <span className="changed-legend"><i />확정표와 다름</span>
-              <span className="missing-legend"><i />확정표에서 빠짐</span>
+              <span className="changed-legend"><i />변동사항</span>
             </div>
             <div className="schedule-filters">
               {admin && (
@@ -268,11 +266,10 @@ export default function Schedule({ user }: { user: User }) {
                   </div>
                   {dates.map((date, index) => {
                     const dayShifts = visibleShifts.filter((shift) => shift.day === date);
-                    const { changed, missing } = comparing
-                      ? compare(dayShifts, table.data!.shifts.filter((entry) => entry.weekday === index + 1))
-                      : { changed: new Set<number>(), missing: [] };
-                    // Missing confirmed shifts are drawn as ghosts with negative ids.
-                    const placed = layout([...dayShifts, ...missing.map(({ weekday: _, ...entry }) => ({ ...entry, id: -entry.id, day: date }))]);
+                    const changed = comparing
+                      ? changes(dayShifts, table.data!.shifts.filter((entry) => entry.weekday === index + 1))
+                      : new Set<number>();
+                    const placed = layout(dayShifts);
                     return (
                       <section
                         key={date}
@@ -305,18 +302,7 @@ export default function Schedule({ user }: { user: User }) {
                             const span = (shift.end - shift.start) / 30;
                             const label = `${name} · ${time(shift.start)}–${time(shift.end)} · ${shift.role === "desk" ? "데스크" : "대기"}`;
                             const position = { gridRow: `${(shift.start - 540) / 30 + 1}/span ${span}`, gridColumn: shift.lane + 1 };
-                            if (shift.id < 0) return (
-                              <div
-                                key={shift.id}
-                                className={`worker ghost ${span === 1 ? "short-shift" : ""} ${person && person !== String(shift.staff_id) ? "dimmed" : ""}`}
-                                style={position}
-                                title={`확정표에서 빠짐 · ${label}`}
-                                aria-label={`확정표에서 빠짐 · ${label}`}
-                              >
-                                <strong>{name}</strong>
-                              </div>
-                            );
-                            const differs = changed.has(shift.id) ? " · 확정표와 다름" : "";
+                            const differs = changed.has(shift.id) ? " · 변동사항" : "";
                             return (
                               <button
                                 key={shift.id}
