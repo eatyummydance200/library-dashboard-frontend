@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { CSSProperties, PointerEvent as ReactPointerEvent } from "react";
 import { api, useResource } from "./api";
+import torch from "../static/torch.gif";
 import type { ConfirmedShift, ConfirmedTable, OriginalWeek, Shift, User, Week, WeeklyHours } from "./types";
 import {
   addDays,
@@ -342,6 +343,7 @@ export default function Schedule({ user }: { user: User }) {
                                   top: `${((minute - 540) / 780) * 100}%`,
                                 }}
                               >
+                                <img src={torch} alt="" />
                                 <span>
                                   현재 {clock.hour}:{clock.minute}
                                 </span>

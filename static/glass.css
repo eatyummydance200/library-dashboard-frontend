@@ -95,3 +95,7 @@ button.confirmed-entry:hover{box-shadow:inset 0 0 0 1px var(--brand)}
 button.confirmed-entry:focus-visible{outline:2px solid var(--brand);outline-offset:-2px}
 .today-issues-done .today-issues-heading{padding-top:14px;color:#4f6582}
 @media(max-width:700px){.issues-card>.card-head{flex-wrap:wrap;gap:12px}.today-issues{padding:0 17px 17px}.today-issues .issue-entry{padding:13px;gap:10px;flex-wrap:wrap}.today-issues .issue-body{flex-basis:100%}.today-issues .shift-issue-actions{margin-left:auto}.today-issues .issue-body h3{font-size:16px}}
+
+.now-line{border-top:3px solid #e8530e;box-shadow:0 0 6px 1px #e8530e99,0 1px 0 #fff;z-index:4}
+.now-line:before{top:-7px;width:11px;height:11px;background:#e8530e;box-shadow:0 0 0 2px #fff,0 0 8px #e8530e}
+.now-line>img{position:absolute;right:2px;top:-30px;height:30px;width:auto;filter:drop-shadow(0 1px 2px #0004)}
