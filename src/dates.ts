@@ -56,3 +56,7 @@ export function dateTime(value?: string | null) {
       }).format(new Date(value))
     : "예정 없음";
 }
+export function addMonths(month: string, count: number) {
+  const [year, m] = month.split("-").map(Number);
+  return new Date(Date.UTC(year, m - 1 + count, 1)).toISOString().slice(0, 7);
+}

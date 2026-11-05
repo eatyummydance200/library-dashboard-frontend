@@ -102,3 +102,10 @@ export interface ArchiveData {
   groups: string[][];
   participants: { id: number; name: string }[];
 }
+export interface CleaningRecord {
+  month: string;
+  created_by: number;
+  username: string;
+  created_at: string;
+  staff: { id: number; name: string }[];
+}

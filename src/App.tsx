@@ -15,16 +15,14 @@ import Dashboard from "./Dashboard";
 import Schedule from "./Schedule";
 import People from "./People";
 import Issues from "./Issues";
-import Archive from "./Archive";
-import Tagging from "./Tagging";
+import Monthly from "./Monthly";
 
 const navigation = [
   ["dashboard", "대시보드", "grid"],
   ["schedule", "시간표", "calendar"],
   ["people", "인적관리", "people"],
   ["issues", "이슈", "message"],
-  ["archive", "과월호", "archive"],
-  ["tagging", "태깅", "tag"],
+  ["monthly", "월간 업무", "archive"],
 ] as const;
 type View = (typeof navigation)[number][0];
 interface Session {
@@ -247,8 +245,7 @@ function Workspace({ user, onLogout }: { user: User; onLogout: () => void }) {
         )}
         {view === "people" && <People user={user} />}
         {view === "issues" && <Issues resource={issues} user={user} />}
-        {view === "archive" && <Archive user={user} />}
-        {view === "tagging" && <Tagging user={user} />}
+        {view === "monthly" && <Monthly user={user} />}
       </main>
       {dialog === "account" && (
         <Modal title="내 계정" onClose={() => setDialog(null)}>

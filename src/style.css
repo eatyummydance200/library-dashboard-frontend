@@ -75,3 +75,34 @@ fieldset {
 .week-board .worker.changed{background:#ffecec;border:2px solid #d93838;color:#a11d1d}
 .changed-legend i{display:inline-block;width:14px;height:14px;border-radius:3px;margin-right:6px;vertical-align:-2px}
 .changed-legend i{background:#ffecec;border:2px solid #d93838}
+/* 월간 업무: 요약 카드 + 하위 탭 */
+.monthly-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-bottom:18px}
+.monthly-card{display:grid;gap:6px;padding:16px 18px;text-align:left;cursor:pointer;font:inherit;color:var(--ink)}
+.monthly-card:hover{border-color:#8faed8;background:#f7faff}
+.monthly-card span{font-size:13px;color:var(--muted);font-weight:600}
+.monthly-card strong{font-size:20px;color:var(--brand);overflow-wrap:anywhere}
+.segment{display:inline-flex;gap:4px;padding:4px;margin-bottom:18px;background:#edf2f9;border-radius:9px}
+.segment button{min-height:36px;padding:6px 18px;border:0;border-radius:7px;background:none;color:#4f637f;font-size:14px;font-weight:600;cursor:pointer}
+.segment button.active{background:white;color:var(--brand);box-shadow:0 1px 3px #1d2d4526}
+@media(max-width:700px){.monthly-summary{grid-template-columns:1fr;gap:8px}.monthly-card strong{font-size:17px}}
+/* 청소 담당 */
+.cleaning-panel{position:relative}
+.cleaning-result{display:grid;gap:6px;padding:0 20px 16px}
+.cleaning-result .hint{margin:0}
+.cleaning-actions{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:0 20px 16px}
+.cleaning-count{display:inline-flex;align-items:center;gap:6px;font-size:14px;color:var(--muted)}
+.cleaning-count input{width:64px;min-height:38px;border:1px solid #c6d2e2;border-radius:8px;padding:6px 8px;font-size:15px}
+.cleaning-slots{display:flex;flex-wrap:wrap;gap:10px}
+.cleaning-slot{min-width:96px;padding:10px 14px;border:2px dashed #c5d8f2;border-radius:10px;background:#f4f7fc;color:#8aa0bd;font-size:22px;font-weight:750;text-align:center}
+.cleaning-slot.is-stopped{border-style:solid;border-color:var(--brand);background:var(--brand-bg);color:var(--brand);animation:slot-stop .3s ease-out}
+@keyframes slot-stop{50%{transform:scale(1.12)}}
+.cleaning-table{width:100%;border-collapse:collapse}
+.cleaning-table thead{background:#f4f7fc}
+.cleaning-table th,.cleaning-table td{padding:9px 12px;border-bottom:1px solid #e4eaf2;text-align:left;font-size:14px}
+.cleaning-table thead th{color:var(--muted);font-weight:650;border-top:1px solid var(--line)}
+.cleaning-pick{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px;margin:10px 0}
+.cleaning-pick label{display:flex;align-items:center;gap:6px;font-size:15px}
+.confetti{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+.confetti span{position:absolute;top:-12px;width:8px;height:12px;border-radius:2px;animation:confetti-fall 1.4s ease-in forwards}
+@keyframes confetti-fall{to{transform:translate(var(--drift),420px) rotate(var(--spin));opacity:0}}
+@media(prefers-reduced-motion:reduce){.cleaning-slot.is-stopped{animation:none}}

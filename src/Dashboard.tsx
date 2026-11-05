@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { api, useResource } from "./api";
-import type { Duty, Issue, Staff, Status, Teacher, User } from "./types";
+import type { CleaningRecord, Duty, Issue, Staff, Status, Teacher, User } from "./types";
 import { koreaParts, today } from "./dates";
 import { IssueEditor, TodayIssues } from "./Issues";
+import { cleaningNames } from "./Cleaning";
 import {
   Field,
   Form,
@@ -25,6 +26,7 @@ export default function Dashboard({
   const status = useResource<Status>("/status");
   const duty = useResource<Duty>("/duty");
   const staff = useResource<Staff[]>("/staff");
+  const cleaning = useResource<CleaningRecord[]>("/cleaning");
   const [day, setDay] = useState(today);
   const dailyIssues = useResource<Issue[]>(`/issues?day=${day}`);
   const [addingIssue, setAddingIssue] = useState(false);
@@ -36,6 +38,7 @@ export default function Dashboard({
         void status.refresh();
         void duty.refresh();
         void dailyIssues.refresh();
+        void cleaning.refresh();
       }
     };
     const timer = setInterval(refresh, 60000);
@@ -44,7 +47,10 @@ export default function Dashboard({
       clearInterval(timer);
       document.removeEventListener("visibilitychange", refresh);
     };
-  }, [status.refresh, duty.refresh, dailyIssues.refresh]);
+  }, [status.refresh, duty.refresh, dailyIssues.refresh, cleaning.refresh]);
+  const cleaningRecord = cleaning.data?.find(
+    (item) => item.month === day.slice(0, 7),
+  );
   const clock = status.data ? koreaParts(new Date(status.data.at)) : undefined;
   return (
     <section id="dashboard" className="view" aria-label="근무 대시보드">
@@ -143,14 +149,19 @@ export default function Dashboard({
               <ResourceError error={duty.error} retry={duty.refresh} />
               <dl className="duty-contact">
                 {[
-                  ["담당쌤", duty.data.teacher],
-                  ["내선번호", duty.data.extension],
-                  ["휴대폰 번호", duty.data.phone],
-                ].map(([label, text]) => (
+                  ["담당쌤", duty.data.teacher, "미등록"],
+                  ["내선번호", duty.data.extension, "미등록"],
+                  ["휴대폰 번호", duty.data.phone, "미등록"],
+                  [
+                    "이번 달 청소",
+                    cleaningRecord && cleaningNames(cleaningRecord),
+                    cleaning.data ? "미추첨" : "…",
+                  ],
+                ].map(([label, text, empty]) => (
                   <div key={label}>
                     <dt>{label}</dt>
                     <dd className={text ? undefined : "duty-empty"}>
-                      {text || "미등록"}
+                      {text || empty}
                     </dd>
                   </div>
                 ))}

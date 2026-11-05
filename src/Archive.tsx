@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
 import { api, message, useResource } from "./api";
 import type { ArchiveData, Assignment, User } from "./types";
-import { dateTime, today } from "./dates";
+import { addMonths, dateTime, today } from "./dates";
 import {
   Action,
   Form,
@@ -21,10 +21,7 @@ export default function Archive({ user }: { user: User }) {
   const notice = useNotice();
   const admin = user.role === "admin";
   function move(offset: number) {
-    const [year, m] = month.split("-").map(Number);
-    const next = new Date(Date.UTC(year, m - 1 + offset, 1))
-      .toISOString()
-      .slice(0, 7);
+    const next = addMonths(month, offset);
     if (next >= "2000-01" && next <= "2100-12") setMonth(next);
   }
   async function toggle(id: number, completed: boolean) {
