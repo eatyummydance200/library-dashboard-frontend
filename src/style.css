@@ -40,6 +40,38 @@ fieldset {
 .resize-handle.end{bottom:0}
 .worker:hover .resize-handle{background:#03499a1f}
 .time-select{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+/* 이슈 항목: 체크박스 | 제목·본문 | ⋯ 메뉴 */
+.issue-item{display:grid;grid-template-columns:20px minmax(0,1fr) 28px;gap:10px;align-items:start;padding:12px 2px;border-top:1px solid var(--line)}
+.issue-list>.issue-item:first-child{border-top:0}
+.issue-check{width:18px;height:18px;margin:4px 0 0 1px;accent-color:var(--brand);cursor:pointer}
+.issue-check:disabled{cursor:progress;opacity:.5}
+.issue-main{min-width:0}
+.issue-heading{margin:0;font-size:15px;font-weight:650;line-height:1.6;color:var(--ink);overflow-wrap:anywhere}
+.issue-heading .issue-title-category{margin-right:2px;padding:1px 6px}
+.issue-time{margin-left:6px;font-size:12px;font-weight:450;color:var(--muted);white-space:nowrap;font-variant-numeric:tabular-nums}
+.issue-text{margin:6px 0 0;font-size:14px;line-height:1.7;color:#4f6582;white-space:pre-wrap;overflow-wrap:anywhere}
+.issue-item.is-done .issue-title{color:var(--muted);text-decoration:line-through;font-weight:500}
+.issue-item.is-done .issue-title-category{opacity:.55}
+.issue-item.is-done .issue-text{color:var(--muted)}
+.issue-menu{position:relative}
+.issue-menu summary{list-style:none;cursor:pointer;width:28px;height:28px;display:grid;place-items:center;border-radius:6px;color:var(--muted);font-size:18px;line-height:1}
+.issue-menu summary::-webkit-details-marker{display:none}
+.issue-menu summary:hover,.issue-menu[open] summary{background:var(--brand-bg);color:var(--brand)}
+.issue-menu summary:focus-visible{outline:2px solid var(--brand);outline-offset:1px}
+.issue-menu-list{position:absolute;right:0;top:calc(100% + 4px);z-index:20;display:grid;min-width:96px;padding:4px;background:white;border:1px solid var(--line);border-radius:8px;box-shadow:0 6px 18px #1d2d4524}
+.issue-menu-list button{padding:8px 10px;border:0;border-radius:6px;background:none;color:var(--ink);font-size:14px;text-align:left;cursor:pointer}
+.issue-menu-list button:hover{background:var(--canvas)}
+.issue-menu-list .danger{color:#ad3434}
+/* 메뉴가 요일 칸 밖으로 나와도 잘리지 않게 */
+.issue-day-column{overflow:visible}
+.issue-day-heading{border-radius:7px 7px 0 0;justify-content:flex-start}
+.issue-day-heading h3{margin:0;font-size:inherit}
+.issue-day-heading time{margin-left:auto}
+.issue-day-add{width:26px;height:26px;display:grid;place-items:center;border:1px solid #c8d4e4;border-radius:6px;background:white;color:var(--brand);font-size:15px;line-height:1;cursor:pointer}
+.issue-day-add:hover{background:var(--brand-bg);border-color:#8faed8}
+.issue-day-add:focus-visible{outline:2px solid var(--brand);outline-offset:1px}
+/* 오늘의 이슈: 칸 나눔 없이 한 줄 목록 */
+.today-issues .issue-list{display:block;padding:0}
 .week-board .worker.changed{background:#ffecec;border:2px solid #d93838;color:#a11d1d}
 .changed-legend i{display:inline-block;width:14px;height:14px;border-radius:3px;margin-right:6px;vertical-align:-2px}
 .changed-legend i{background:#ffecec;border:2px solid #d93838}
