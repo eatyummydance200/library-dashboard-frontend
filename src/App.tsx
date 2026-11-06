@@ -4,11 +4,13 @@ import type { Issue, User } from "./types";
 import logo from "../static/inu-logo.png";
 import {
   Action,
+  AdminSlot,
   Field,
   Form,
   Icon,
   Modal,
   NoticeContext,
+  useMobile,
   value,
 } from "./ui";
 import Dashboard from "./Dashboard";
@@ -17,8 +19,9 @@ import People from "./People";
 import Issues from "./Issues";
 import Monthly from "./Monthly";
 
+// [키, 탭 이름, 아이콘]. 웹은 탭 이름이 화면 제목 역할을 하고, 모바일은 하단 탭바에 아이콘을 쓴다.
 const navigation = [
-  ["dashboard", "대시보드", "grid"],
+  ["dashboard", "홈", "home"],
   ["schedule", "시간표", "calendar"],
   ["people", "인적관리", "people"],
   ["issues", "이슈", "message"],
@@ -101,12 +104,8 @@ function Login({ onLoginStart, onLogin }: {
   return (
     <main className="auth-card">
       <img className="auth-logo" src={logo} alt="인천대학교 INU 워드마크" />
-      <h1>근무 대시보드</h1>
-      <p className="auth-description">
-        인천대학교 연속간행물실
-        <br />
-        계정으로 로그인해주세요.
-      </p>
+      <p className="auth-kicker">연속간행물실 근무 대시보드</p>
+      <h1>반가워요!</h1>
       <form
         onSubmit={async (event) => {
           event.preventDefault();
@@ -141,6 +140,9 @@ function Login({ onLoginStart, onLogin }: {
               required
               maxLength={32}
               autoComplete="username"
+              autoCapitalize="off"
+              spellCheck={false}
+              enterKeyHint="next"
               autoFocus
             />
           </label>
@@ -152,14 +154,16 @@ function Login({ onLoginStart, onLogin }: {
               required
               maxLength={128}
               autoComplete="current-password"
+              enterKeyHint="go"
             />
           </label>
-          <button className="btn primary" type="submit">
+          <button className="btn primary auth-submit" type="submit">
             {busy ? "로그인 중…" : "로그인"}
           </button>
         </fieldset>
         {error && <p className="inline-error" role="alert">{error}</p>}
       </form>
+      <p className="auth-note">계정 문의는 관리자에게 해 주세요.</p>
     </main>
   );
 }
@@ -167,8 +171,11 @@ function Workspace({ user, onLogout }: { user: User; onLogout: () => void }) {
   const [view, setView] = useState<View>("dashboard");
   const [dialog, setDialog] = useState<"account" | "password" | null>(null);
   const issues = useResource<Issue[]>("/issues");
+  const [slot, setSlot] = useState<HTMLElement | null>(null);
   useEffect(() => {
     document.body.dataset.page = view;
+    // 탭을 바꾸면 새 화면의 맨 위부터 보여준다
+    window.scrollTo?.(0, 0);
   }, [view]);
   useEffect(() => {
     const refresh = () => {
@@ -182,57 +189,54 @@ function Workspace({ user, onLogout }: { user: User; onLogout: () => void }) {
     };
   }, [issues.refresh]);
   const item = navigation.find((item) => item[0] === view)!;
+  const open = issues.data?.filter((issue) => !issue.done).length;
+  const mobile = useMobile();
+  const badge = !!open && (
+    <span className="count-badge" aria-label={`진행 중 ${open}건`}>{open}</span>
+  );
+  const account = (
+    <button
+      className="avatar account-avatar"
+      aria-label={`내 계정 메뉴 (${user.username})`}
+      onClick={() => setDialog("account")}
+    >
+      {user.username.slice(0, 1)}
+    </button>
+  );
   return (
     <div className="app">
-      <aside className="sidebar" aria-label="주 메뉴">
-        <div className="brand">
-          <img
-            src={logo}
-            width={539}
-            height={301}
-            alt="인천대학교 INU 워드마크"
-          />
-        </div>
-        <nav className="nav" aria-label="화면 이동">
-          {navigation.map(([key, label, icon]) => (
-            <button
-              key={key}
-              className={view === key ? "active" : ""}
-              aria-current={view === key ? "page" : undefined}
-              onClick={() => setView(key)}
-            >
-              <Icon name={icon} />
-              {label}
-              {key === "issues" && (
-                <span className="count-badge">
-                  {issues.data?.filter((issue) => !issue.done).length ?? "…"}
-                </span>
-              )}
-            </button>
-          ))}
-        </nav>
-      </aside>
-      <main className="main">
-        <header className="topbar">
-          <div className="breadcrumb">
-            <Icon name="home" />
-            <span>인천대학교 · 연속간행물실</span>
-            <span>/</span>
-            <strong>{item[1]}</strong>
+      {mobile ? (
+        <header className="appbar">
+          <img className="appbar-logo" src={logo} width={539} height={301} alt="인천대학교" />
+          <div className="appbar-title">
+            <h1>{view === "dashboard" ? `${user.username}님, 안녕하세요` : item[1]}</h1>
           </div>
-          <div className="top-actions">
-            <button
-              className="avatar account-avatar"
-              aria-label="내 계정 메뉴"
-              onClick={() => setDialog("account")}
-            >
-              {user.username.slice(0, 1)}
-            </button>
-          </div>
+          <div className="admin-slot" ref={setSlot} />
+          {account}
         </header>
-        <section className="intro">
-          <h1>{view === "dashboard" ? "근무 대시보드" : item[1]}</h1>
-        </section>
+      ) : (
+        <header className="topbar">
+          <img className="topbar-logo" src={logo} width={539} height={301} alt="인천대학교" />
+          <nav className="tabs" aria-label="화면 이동">
+            {navigation.map(([key, label]) => (
+              <button
+                key={key}
+                className={view === key ? "active" : ""}
+                aria-current={view === key ? "page" : undefined}
+                onClick={() => setView(key)}
+              >
+                {label}
+                {key === "issues" && badge}
+              </button>
+            ))}
+          </nav>
+          <div className="admin-slot" ref={setSlot} />
+          {account}
+        </header>
+      )}
+      <main className="main">
+        {!mobile && <h1 className="sr-only">{item[1]}</h1>}
+        <AdminSlot.Provider value={slot}>
         {view === "dashboard" && (
           <Dashboard
             user={user}
@@ -246,12 +250,35 @@ function Workspace({ user, onLogout }: { user: User; onLogout: () => void }) {
         {view === "people" && <People user={user} />}
         {view === "issues" && <Issues resource={issues} user={user} />}
         {view === "monthly" && <Monthly user={user} />}
+        </AdminSlot.Provider>
       </main>
+      {mobile && (
+        <nav className="tabbar" aria-label="화면 이동">
+          {navigation.map(([key, label, icon]) => (
+            <button
+              key={key}
+              className={view === key ? "active" : ""}
+              aria-current={view === key ? "page" : undefined}
+              onClick={() => setView(key)}
+            >
+              <span className="tab-icon">
+                <Icon name={icon} />
+                {key === "issues" && badge}
+              </span>
+              <span className="tab-label">{label}</span>
+            </button>
+          ))}
+        </nav>
+      )}
       {dialog === "account" && (
         <Modal title="내 계정" onClose={() => setDialog(null)}>
-          <p className="hint">
-            {user.username} · {user.role === "admin" ? "관리자" : "근무자"}
-          </p>
+          <div className="account-summary">
+            <span className="avatar">{user.username.slice(0, 1)}</span>
+            <div>
+              <strong>{user.username}</strong>
+              <span>{user.role === "admin" ? "관리자" : "근무자"} 계정</span>
+            </div>
+          </div>
           <div className="form-actions">
             <button className="btn" onClick={() => setDialog("password")}>
               비밀번호 변경
@@ -312,7 +339,7 @@ function Workspace({ user, onLogout }: { user: User; onLogout: () => void }) {
               />
             </Field>
             <p className="hint">
-              변경 후 모든 기기에서 다시 로그인해야 합니다.
+              바꾸고 나면 모든 기기에서 다시 로그인해야 해요.
             </p>
           </Form>
         </Modal>

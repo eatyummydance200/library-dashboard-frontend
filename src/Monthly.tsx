@@ -5,6 +5,7 @@ import { today } from "./dates";
 import Archive from "./Archive";
 import Tagging from "./Tagging";
 import Cleaning, { cleaningNames } from "./Cleaning";
+import "./screens.css";
 
 const tabs = [
   ["archive", "과월호"],
@@ -41,32 +42,47 @@ export function MonthlySummary({
   tagging,
   cleaning,
   onOpen,
+  active,
 }: {
   month: string;
   archive?: ArchiveData;
   tagging?: TaggingData;
   cleaning?: CleaningRecord[];
   onOpen: (tab: Tab) => void;
+  active?: Tab;
 }) {
   const a = archive && archiveProgress(archive);
   const t = tagging && taggingProgress(tagging, Number(month.slice(5)));
-  const cards: [Tab, string, string][] = [
-    ["archive", "과월호 진행", a ? `${a.done} / ${a.total} 완료` : "…"],
-    ["tagging", "태깅 진행", t ? `${t.done} / ${t.total}명 완료` : "…"],
+  // [탭, 이름, 요약, 진행률(0~1, 없으면 막대 없음)]
+  const cards: [Tab, string, string, number | undefined][] = [
+    ["archive", "과월호 진행", a ? `${a.done} / ${a.total} 완료` : "…", a && a.total ? a.done / a.total : undefined],
+    ["tagging", "태깅 진행", t ? `${t.done} / ${t.total}명 완료` : "…", t && t.total ? t.done / t.total : undefined],
     [
       "cleaning",
       "청소 담당",
       cleaning
         ? cleaningNames(cleaning.find((item) => item.month === month))
         : "…",
+      undefined,
     ],
   ];
   return (
-    <div className="monthly-summary" aria-label={`${month} 요약`}>
-      {cards.map(([key, label, text]) => (
-        <button key={key} className="card monthly-card" onClick={() => onOpen(key)}>
+    <div className="monthly-summary" role="tablist" aria-label={`${month} 월간 업무`}>
+      {cards.map(([key, label, text, ratio]) => (
+        <button
+          key={key}
+          role="tab"
+          aria-selected={active === key}
+          className={`card monthly-card${active === key ? " active" : ""}`}
+          onClick={() => onOpen(key)}
+        >
           <span>{label}</span>
           <strong>{text}</strong>
+          {ratio !== undefined && (
+            <i className="mini-bar" aria-hidden="true">
+              <i style={{ width: `${Math.round(ratio * 100)}%` }} />
+            </i>
+          )}
         </button>
       ))}
     </div>
@@ -95,23 +111,13 @@ export default function Monthly({ user }: { user: User }) {
         tagging={tagging.data}
         cleaning={cleaning.data}
         onOpen={open}
+        active={tab}
       />
-      <div className="segment" role="tablist" aria-label="월간 업무 종류">
-        {tabs.map(([key, label]) => (
-          <button
-            key={key}
-            role="tab"
-            aria-selected={tab === key}
-            className={tab === key ? "active" : ""}
-            onClick={() => open(key)}
-          >
-            {label}
-          </button>
-        ))}
+      <div role="tabpanel" aria-label={tabs.find(([key]) => key === tab)![1]}>
+        {tab === "archive" && <Archive user={user} />}
+        {tab === "tagging" && <Tagging user={user} onChanged={tagging.refresh} />}
+        {tab === "cleaning" && <Cleaning user={user} records={cleaning} />}
       </div>
-      {tab === "archive" && <Archive user={user} />}
-      {tab === "tagging" && <Tagging user={user} />}
-      {tab === "cleaning" && <Cleaning user={user} records={cleaning} />}
     </section>
   );
 }

@@ -4,11 +4,15 @@ import type { ArchiveData, Assignment, User } from "./types";
 import { addMonths, dateTime, today } from "./dates";
 import {
   Action,
+  AdminMenu,
+  Fold,
   Form,
   Loading,
   Modal,
   ResourceError,
+  Stepper,
   numeric,
+  useMobile,
   useNotice,
 } from "./ui";
 
@@ -20,9 +24,16 @@ export default function Archive({ user }: { user: User }) {
   const [pending, setPending] = useState<number[]>([]);
   const notice = useNotice();
   const admin = user.role === "admin";
+  const mobile = useMobile();
   function move(offset: number) {
     const next = addMonths(month, offset);
     if (next >= "2000-01" && next <= "2100-12") setMonth(next);
+  }
+  async function draw() {
+    if (!confirm(`${month} 담당을 무작위 추첨할까요?`)) return;
+    await api("/archive/draw", "POST", { month });
+    await resource.refresh();
+    notice("담당 추첨 결과를 저장했습니다.");
   }
   async function toggle(id: number, completed: boolean) {
     if (busy.current.has(id)) return;
@@ -72,8 +83,24 @@ export default function Archive({ user }: { user: User }) {
   return (
     <section className="view" aria-label="과월호">
       <section className="card archive-panel">
-        <div className="card-head">
-          <h2 className="sr-only">월별 과월호</h2>
+        {mobile ? (
+          <div className="card-head">
+            <Stepper
+              label={`${month.slice(0, 4)}년 ${Number(month.slice(5))}월`}
+              prev="과월호 이전 달"
+              next="과월호 다음 달"
+              onMove={move}
+              canPrev={month !== "2000-01" && !pending.length}
+              canNext={month !== "2100-12" && !pending.length}
+            />
+            {data && (
+              <span className="list-note">
+                {!data.draw ? "추첨 전" : done === tasks.length ? "모두 완료 🎉" : `${done}/${tasks.length} · ${tasks.length - done}개 남음`}
+              </span>
+            )}
+          </div>
+        ) : (
+        <div className="card-head panel-bar">
           <div className="archive-month-controls">
             <button
               className="icon-btn"
@@ -105,144 +132,147 @@ export default function Archive({ user }: { user: User }) {
               ›
             </button>
           </div>
+          {data && (
+            <div className="archive-progress">
+              <strong>
+                {done}
+                <span> / {tasks.length} 완료</span>
+              </strong>
+              <span className="hint">
+                {!data.draw ? "추첨 전" : done === tasks.length ? "모두 마쳤어요 🎉" : `${tasks.length - done}개 남음`}
+              </span>
+              <progress
+                max={tasks.length || 1}
+                value={done}
+                aria-label={`${month} 과월호 진행률`}
+              />
+            </div>
+          )}
         </div>
+        )}
         {data ? (
           <>
             <ResourceError error={resource.error} retry={resource.refresh} />
-            <div className="archive-summary">
-              <div className="archive-progress">
-                <strong>
-                  {done}
-                  <span> / {tasks.length} 완료</span>
-                </strong>
-                <progress
-                  max={tasks.length || 1}
-                  value={done}
-                  aria-label={`${month} 과월호 진행률`}
-                />
-              </div>
-              {admin && (
-                <div className="archive-actions">
-                  {!data.draw && (
-                    <Action
-                      disabled={data.participants.length !== 7}
-                      run={async () => {
-                        if (!confirm(`${month} 담당을 무작위 추첨할까요?`))
-                          return;
-                        await api("/archive/draw", "POST", { month });
-                        await resource.refresh();
-                        notice("담당 추첨 결과를 저장했습니다.");
-                      }}
-                    >
-                      무작위 추첨
-                    </Action>
-                  )}
-                  <button
-                    className="btn primary"
-                    disabled={
-                      !!pending.length ||
-                      (!data.draw && data.participants.length < 7)
-                    }
-                    onClick={() => setEditing(data)}
+            {admin && !mobile && (
+              <AdminMenu>
+                {!data.draw && (
+                  <Action
+                    disabled={data.participants.length !== 7}
+                    run={draw}
                   >
-                    {data.draw ? "담당자 수정" : "수동 입력"}
-                  </button>
-                </div>
-              )}
-            </div>
-            {!data.draw && data.participants.length !== 7 && admin && (
-              <p className="archive-notice">
-                추첨은 재직 7명일 때 가능합니다. 수동 입력은 7명을 선택해주세요.
-              </p>
+                    과월호 무작위 추첨
+                  </Action>
+                )}
+                <button
+                  type="button"
+                  disabled={
+                    !!pending.length ||
+                    (!data.draw && data.participants.length < 7)
+                  }
+                  onClick={() => setEditing(data)}
+                >
+                  {data.draw ? "과월호 담당자 수정" : "과월호 담당 수동 입력"}
+                </button>
+                {!data.draw && data.participants.length !== 7 && (
+                  <p className="menu-hint">추첨은 재직 근무자가 7명일 때 할 수 있어요. 수동 입력은 7명을 골라 주세요.</p>
+                )}
+              </AdminMenu>
             )}
             {!admin && !user.staff_id && (
               <p className="archive-notice">
-                본인 체크는 관리자에게 계정과 근무자 이름 연결을 요청해주세요.
+                내 담당을 체크하려면 관리자에게 계정과 근무자 이름을 연결해 달라고 요청해 주세요.
               </p>
             )}
-            <div className="table-inset">
-              <table className="archive-table">
-                <caption className="sr-only">
-                  {month} 과월호 담당자와 신문사 완료 상태
-                </caption>
-                <thead>
-                  <tr>
-                    <th scope="col">번호</th>
-                    <th scope="col">담당자</th>
-                    <th scope="col">신문사 · 완료 체크</th>
-                    <th scope="col">완료</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.map((row) => {
-                    const mine = !!data.draw && user.staff_id === row.staff_id;
-                    const editable = !!data.draw && (admin || mine);
-                    const count = row.tasks.filter(
-                      (task) => task.completed,
-                    ).length;
-                    return (
-                      <tr
-                        key={row.group_number}
-                        className={`archive-group ${mine ? "my-archive" : ""} ${count === row.tasks.length ? "archive-complete" : ""}`}
-                      >
-                        <td>
-                          <span className="archive-number">
-                            {row.group_number}
-                          </span>
-                        </td>
-                        <th scope="row" className="archive-owner">
-                          {row.staff_name}
-                          {mine && <small>내 담당</small>}
-                        </th>
-                        <td>
-                          <div className="archive-papers">
-                            {row.tasks.map((task) => {
-                              const detail = task.completed
-                                ? `${dateTime(task.completed_at)} · ${task.completed_by_name ?? ""}`
-                                : data.draw
-                                  ? "미완료"
-                                  : "배정 전";
-                              const saving =
-                                task.id !== undefined &&
-                                pending.includes(task.id);
-                              return (
-                                <label
-                                  key={task.id ?? task.newspaper}
-                                  className={`archive-task ${task.completed ? "is-complete" : ""}`}
-                                  title={detail}
-                                >
-                                  <input
-                                    type="checkbox"
-                                    checked={!!task.completed}
-                                    disabled={!editable}
-                                    aria-busy={saving || undefined}
-                                    aria-disabled={saving || undefined}
-                                    aria-label={`${row.staff_name} ${task.newspaper} 과월호 완료 · ${detail}`}
-                                    onChange={() => {
-                                      if (task.id !== undefined)
-                                        void toggle(task.id, !task.completed);
-                                    }}
-                                  />
-                                  <span>{task.newspaper}</span>
-                                </label>
-                              );
-                            })}
-                          </div>
-                        </td>
-                        <td className="archive-group-count">
-                          {count}/{row.tasks.length}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+            <ol className="archive-groups" aria-label={`${month} 과월호 담당자와 신문사 완료 상태`}>
+              {/* 내 담당을 맨 위로 */}
+              {[...rows].sort((a, b) => Number(!!data.draw && user.staff_id === b.staff_id) - Number(!!data.draw && user.staff_id === a.staff_id)).map((row) => {
+                const mine = !!data.draw && user.staff_id === row.staff_id;
+                const editable = !!data.draw && (admin || mine);
+                const count = row.tasks.filter((task) => task.completed).length;
+                return (
+                  <li
+                    key={row.group_number}
+                    className={`archive-group ${mine ? "my-archive" : ""} ${count === row.tasks.length ? "archive-complete" : ""}`}
+                  >
+                    <div className="archive-group-head">
+                      <span className="archive-number" aria-label={`${row.group_number}조`}>{row.group_number}</span>
+                      <strong className="archive-owner">
+                        {row.staff_name}
+                        {mine && <small>내 담당</small>}
+                      </strong>
+                      <span className="archive-group-count">
+                        {count === row.tasks.length && row.tasks.length ? "완료!" : `${count}/${row.tasks.length}`}
+                      </span>
+                    </div>
+                    <div className="archive-papers">
+                      {row.tasks.map((task) => {
+                        const detail = task.completed
+                          ? `${dateTime(task.completed_at)} · ${task.completed_by_name ?? ""}`
+                          : data.draw
+                            ? "미완료"
+                            : "배정 전";
+                        const saving = task.id !== undefined && pending.includes(task.id);
+                        return (
+                          <label
+                            key={task.id ?? task.newspaper}
+                            className={`archive-task ${task.completed ? "is-complete" : ""}`}
+                            title={detail}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={!!task.completed}
+                              disabled={!editable}
+                              aria-busy={saving || undefined}
+                              aria-disabled={saving || undefined}
+                              aria-label={`${row.staff_name} ${task.newspaper} 과월호 완료 · ${detail}`}
+                              onChange={() => {
+                                if (task.id !== undefined) void toggle(task.id, !task.completed);
+                              }}
+                            />
+                            <span>{task.newspaper}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </li>
+                );
+              })}
+            </ol>
           </>
         ) : (
           <Loading error={resource.error} retry={resource.refresh} />
         )}
       </section>
+      {admin && mobile && data && (
+        <Fold title={data.draw ? "담당자 수정" : "담당 추첨·수동 입력"}>
+          {!data.draw && data.participants.length !== 7 && (
+            <p className="archive-notice">
+              추첨은 재직 근무자가 7명일 때 할 수 있어요. 수동 입력은 7명을 골라 주세요.
+            </p>
+          )}
+          <div className="archive-actions">
+            {!data.draw && (
+              <Action
+                disabled={data.participants.length !== 7}
+                run={draw}
+              >
+                무작위 추첨
+              </Action>
+            )}
+            <button
+              type="button"
+              className="btn primary"
+              disabled={
+                !!pending.length ||
+                (!data.draw && data.participants.length < 7)
+              }
+              onClick={() => setEditing(data)}
+            >
+              {data.draw ? "담당자 수정" : "수동 입력"}
+            </button>
+          </div>
+        </Fold>
+      )}
       {editing && (
         <ArchiveEditor
           data={editing}

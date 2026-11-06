@@ -1,0 +1,18 @@
+/* 시간표 모바일(899px 이하): DayStrip + 하루 한 열 블록(.day-board). 블록 모양·계산은 웹 주간표(style.css "시간표")와 같다. */
+.day-strip{display:flex;flex-direction:column;align-items:center;gap:2px}
+.day-strip-row{display:flex;align-items:center;gap:4px;width:100%}
+.day-strip-row>.icon-btn{width:36px}
+.day-strip .day-picker{flex:1;padding:0}
+.day-strip .today-jump{font-size:13px}
+.day-legend{padding:12px 14px 8px}
+/* 하루 한 열: 가로 스크롤 없이 폭을 채우고, 터치하기 좋게 칸을 키운다 */
+.week-board.day-board{--slot-height:40px;grid-template-columns:52px minmax(0,1fr);min-width:0}
+.day-board .worker strong{font-size:15px}
+.day-board .worker-time{font-size:12px}
+/* 내 근무: 네 변을 브랜드색 고리로 한 번 더 감싼다 */
+.worker.mine{box-shadow:0 0 0 2px var(--brand)}
+/* 드래그 손잡이: 손가락으로 잡을 수 있게 크게(보이는 막대는 그리지 않는다) */
+.day-board .resize-handle{height:18px}
+.day-board .short-shift .resize-handle{height:12px}
+.schedule-actions{display:flex;gap:8px;flex-wrap:wrap;padding:0 14px 12px}
+.schedule-copy-card .day-picker{padding:0 14px 10px}

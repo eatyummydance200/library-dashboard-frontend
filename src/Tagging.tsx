@@ -2,13 +2,25 @@ import { useEffect, useRef, useState } from "react";
 import { api, message, useResource } from "./api";
 import type { TaggingData, User } from "./types";
 import { koreaParts } from "./dates";
-import { Loading, ResourceError, useNotice } from "./ui";
+import { Loading, ResourceError, Stepper, useMobile, useNotice } from "./ui";
 
-export default function Tagging({ user }: { user: User }) {
+// onChanged: 월간 요약 카드의 진행률을 바로 다시 불러온다
+export default function Tagging({ user, onChanged }: { user: User; onChanged?: () => Promise<void> }) {
+  const mobile = useMobile();
   const [clock, setClock] = useState(koreaParts());
   const currentYear = Number(clock.year),
     month = Number(clock.month);
   const [year, setYear] = useState(currentYear);
+  const [selected, setSelected] = useState(month);
+  const chips = useRef<HTMLDivElement>(null);
+  // 휴대폰에서 고른 달 칩이 가로 스크롤 밖에 있으면 보이게 한다
+  useEffect(() => {
+    const row = chips.current;
+    const chip = row?.querySelector("[aria-pressed=true]");
+    if (!row || !chip) return;
+    const a = row.getBoundingClientRect(), b = chip.getBoundingClientRect();
+    row.scrollLeft += b.left - a.left - (a.width - b.width) / 2;
+  }, [selected]);
   const table = useResource<TaggingData>(`/tagging?year=${year}`);
   const current = useResource<TaggingData>(`/tagging?year=${currentYear}`);
   const summary = year === currentYear ? table : current;
@@ -37,6 +49,7 @@ export default function Tagging({ user }: { user: User }) {
       });
       table.update(change);
       if (year === currentYear) current.update(change);
+      void onChanged?.();
       notice("태깅 상태를 저장했습니다.");
     } catch (error) {
       notice(message(error));
@@ -55,50 +68,21 @@ export default function Tagging({ user }: { user: User }) {
   const percent = active.length ? Math.round((done / active.length) * 100) : 0;
   return (
     <section id="tagging" className="view" aria-label="태깅">
-      <section className="card tagging-status-card">
-        <div className="card-head">
-          <h2>{month}월 태깅 현황</h2>
-        </div>
-        {summary.data ? (
-          <>
-            <ResourceError error={summary.error} retry={summary.refresh} />
-            <div id="tag-status" aria-live="polite">
-              <div className="tag-status-summary">
-                <strong>
-                  {done}
-                  <span> / {active.length}명 완료</span>
-                </strong>
-                <span>{percent}%</span>
-              </div>
-              <progress
-                max={active.length || 1}
-                value={done}
-                aria-label={`${month}월 태깅 진행률`}
-              >
-                {percent}%
-              </progress>
-              <ul className="tag-status-people">
-                {active.map((person) => (
-                  <li
-                    key={person.id}
-                    className={completed.has(person.id) ? "is-complete" : ""}
-                  >
-                    <span>{person.name}</span>
-                    <strong>
-                      {completed.has(person.id) ? "완료" : "미완료"}
-                    </strong>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </>
-        ) : (
-          <Loading error={summary.error} retry={summary.refresh} />
-        )}
-      </section>
       <section className="card">
-        <div className="card-head">
-          <h2>월별 태깅</h2>
+        {mobile ? (
+          <div className="card-head">
+            <Stepper
+              label={`${year}년`}
+              prev="이전 연도"
+              next="다음 연도"
+              onMove={(offset) => setYear(year + offset)}
+              canPrev={year > 2000 && !pending.length}
+              canNext={year < 2100 && !pending.length}
+            />
+            {user.role !== "admin" && <span className="list-note">조회만 할 수 있어요</span>}
+          </div>
+        ) : (
+        <div className="card-head panel-bar">
           <div className="week-controls">
             <button
               className="icon-btn"
@@ -118,88 +102,69 @@ export default function Tagging({ user }: { user: User }) {
               ›
             </button>
           </div>
+          <div id="tag-status" aria-live="polite">
+            {summary.data ? (
+              <>
+                <span className="tag-status-summary">
+                  이번 달({month}월) <strong>{done}</strong> / {active.length}명 완료
+                  {percent === 100 && " · 모두 완료했어요!"}
+                </span>
+                <progress max={active.length || 1} value={done} aria-label={`${month}월 태깅 진행률`}>
+                  {percent}%
+                </progress>
+              </>
+            ) : summary.error ? (
+              <ResourceError error={summary.error} retry={summary.refresh} />
+            ) : "…"}
+          </div>
         </div>
-        <p className="tag-legend">
-          ○ 완료 <span>— 미완료</span>
-          <span>{user.role === "admin" ? "클릭하여 변경" : "조회 전용"}</span>
-        </p>
+        )}
+        {summary.data && <ResourceError error={summary.error} retry={summary.refresh} />}
+        <div ref={chips} className="month-chips" role="group" aria-label="태깅 월 선택">
+          {Array.from({ length: 12 }, (_, i) => (
+            <button
+              key={i}
+              type="button"
+              aria-pressed={selected === i + 1}
+              className={year === currentYear && i + 1 === month ? "this-month" : undefined}
+              onClick={() => setSelected(i + 1)}
+            >
+              {i + 1}월
+            </button>
+          ))}
+        </div>
         {table.data ? (
           <>
             <ResourceError error={table.error} retry={table.refresh} />
-            <div className="tag-table table-inset">
-              <table className="tagging-table">
-                <caption className="sr-only">
-                  {year}년 근무자별 월간 태깅 완료 여부
-                </caption>
-                <thead>
-                  <tr>
-                    <th scope="col">근무자</th>
-                    {Array.from({ length: 12 }, (_, i) => (
-                      <th
-                        scope="col"
-                        key={i}
-                        className={
-                          year === currentYear && i + 1 === month
-                            ? "this-month"
-                            : ""
-                        }
-                      >
-                        {i + 1}월
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {table.data.staff.map((person) => (
-                    <tr key={person.id}>
-                      <th scope="row">
-                        {person.name}
-                        {!person.active && <small>비활성</small>}
-                      </th>
-                      {Array.from({ length: 12 }, (_, i) => {
-                        const monthNumber = i + 1;
-                        const completed = !!table.data!.tags.find(
-                          (tag) =>
-                            tag.staff_id === person.id &&
-                            tag.month === monthNumber,
-                        )?.completed;
-                        const key = `${person.id}/${year}/${monthNumber}`;
-                        const saving = pending.includes(key);
-                        return (
-                          <td
-                            key={monthNumber}
-                            className={
-                              year === currentYear && monthNumber === month
-                                ? "this-month"
-                                : ""
-                            }
-                          >
-                            <button
-                              className="tag-mark"
-                              disabled={user.role !== "admin"}
-                              aria-disabled={saving || undefined}
-                              aria-busy={saving || undefined}
-                              aria-pressed={completed}
-                              aria-label={`${person.name} ${year}년 ${monthNumber}월 ${completed ? "완료" : "미완료"}`}
-                              onClick={() =>
-                                void toggle(person.id, monthNumber, !completed)
-                              }
-                            >
-                              {completed ? "○" : "—"}
-                            </button>
-                          </td>
-                        );
-                      })}
-                    </tr>
-                  ))}
-                  {!table.data.staff.length && (
-                    <tr>
-                      <td colSpan={13}>등록된 근무자가 없습니다.</td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
+            <ul className="tag-list" aria-label={`${year}년 ${selected}월 근무자별 태깅 완료 여부`}>
+              {table.data.staff.map((person) => {
+                const tags = table.data!.tags.filter((tag) => tag.staff_id === person.id && tag.completed);
+                const completed = tags.some((tag) => tag.month === selected);
+                const key = `${person.id}/${year}/${selected}`;
+                const saving = pending.includes(key);
+                return (
+                  <li key={person.id} className={`tag-row${completed ? " is-complete" : ""}`}>
+                    <span className="tag-name">
+                      <strong>{person.name}</strong>
+                      {!person.active && <small className="badge">비활성</small>}
+                      <small>올해 {tags.length}/12</small>
+                    </span>
+                    <button
+                      className="tag-mark"
+                      disabled={user.role !== "admin"}
+                      aria-disabled={saving || undefined}
+                      aria-busy={saving || undefined}
+                      aria-pressed={completed}
+                      aria-label={`${person.name} ${year}년 ${selected}월 ${completed ? "완료" : "미완료"}`}
+                      onClick={() => void toggle(person.id, selected, !completed)}
+                    >
+                      {completed ? "✓ 완료" : "미완료"}
+                    </button>
+                  </li>
+                );
+              })}
+              {!table.data.staff.length && <li className="shift-issue-empty">등록된 근무자가 없습니다.</li>}
+            </ul>
           </>
         ) : (
           <Loading error={table.error} retry={table.refresh} />

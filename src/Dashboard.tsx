@@ -1,16 +1,18 @@
 import { useEffect, useState } from "react";
 import { api, useResource } from "./api";
-import type { CleaningRecord, Duty, Issue, Staff, Status, Teacher, User } from "./types";
+import type { Duty, Issue, Staff, Status, Teacher, User } from "./types";
 import { koreaParts, today } from "./dates";
 import { IssueEditor, TodayIssues } from "./Issues";
-import { cleaningNames } from "./Cleaning";
 import {
+  AdminMenu,
   Field,
   Form,
+  Icon,
   Loading,
   Modal,
   ResourceError,
   numeric,
+  useMobile,
   useNotice,
 } from "./ui";
 
@@ -26,7 +28,6 @@ export default function Dashboard({
   const status = useResource<Status>("/status");
   const duty = useResource<Duty>("/duty");
   const staff = useResource<Staff[]>("/staff");
-  const cleaning = useResource<CleaningRecord[]>("/cleaning");
   const [day, setDay] = useState(today);
   const dailyIssues = useResource<Issue[]>(`/issues?day=${day}`);
   const [addingIssue, setAddingIssue] = useState(false);
@@ -38,7 +39,6 @@ export default function Dashboard({
         void status.refresh();
         void duty.refresh();
         void dailyIssues.refresh();
-        void cleaning.refresh();
       }
     };
     const timer = setInterval(refresh, 60000);
@@ -47,141 +47,72 @@ export default function Dashboard({
       clearInterval(timer);
       document.removeEventListener("visibilitychange", refresh);
     };
-  }, [status.refresh, duty.refresh, dailyIssues.refresh, cleaning.refresh]);
-  const cleaningRecord = cleaning.data?.find(
-    (item) => item.month === day.slice(0, 7),
-  );
+  }, [status.refresh, duty.refresh, dailyIssues.refresh]);
+  const mobile = useMobile();
   const clock = status.data ? koreaParts(new Date(status.data.at)) : undefined;
-  return (
-    <section id="dashboard" className="view" aria-label="근무 대시보드">
-      <div className="dashboard-duty-layout">
-        <section className="card status-card">
-          <div className="card-head">
-            <h2>근무 현황</h2>
-            <span id="shift-date">
-              {clock &&
-                `${Number(clock.month)}월 ${Number(clock.day)}일`}
-            </span>
+  const nameOf = (id: number) =>
+    staff.data?.find((person) => person.id === id)?.name ?? "근무자";
+  function people(key: "previous" | "current" | "next", role: "desk" | "general") {
+    const entries = status.data![key].filter((shift) => shift.role === role);
+    return entries.length ? (
+      entries.map((shift) => (
+        <span className="duty-person" key={shift.id}>
+          {nameOf(shift.staff_id)}
+        </span>
+      ))
+    ) : (
+      <span className="unassigned">비어 있어요</span>
+    );
+  }
+  // 모바일: 이전·다음 근무를 "다음 15:00 · 김가 · 이나(대기)"처럼 한 줄로
+  function neighbor(key: "previous" | "next") {
+    const at = status.data![`${key}_at`];
+    const parts = at ? koreaParts(new Date(at)) : undefined;
+    const names = status.data![key].map(
+      (shift) => `${nameOf(shift.staff_id)}${shift.role === "desk" ? "" : "(대기)"}`,
+    );
+    return (
+      <p key={key} className="neighbor-line">
+        <b>{key === "previous" ? "이전" : "다음"}</b>
+        <time dateTime={at ?? undefined}>{parts ? `${parts.hour}:${parts.minute}` : "예정 없음"}</time>
+        {parts && <span>{names.join(" · ") || "비어 있어요"}</span>}
+      </p>
+    );
+  }
+  const retryStatus = () => {
+    void status.refresh();
+    void staff.refresh();
+  };
+  const nowHead = (
+    <div className="card-head">
+      <h2 id="now-title">
+        <i className="live-dot" aria-hidden="true" />
+        지금 근무 중
+      </h2>
+      <span id="shift-date">
+        {clock &&
+          `${Number(clock.month)}월 ${Number(clock.day)}일 ${clock.hour}:${clock.minute}`}
+      </span>
+    </div>
+  );
+  const nowRoles = () => (
+    <>
+      <ResourceError error={status.error || staff.error} retry={retryStatus} />
+      <div className="now-roles">
+        {(["desk", "general"] as const).map((role) => (
+          <div
+            key={role}
+            className={`duty-group ${role === "desk" ? "desk-duty" : "standby-duty"}`}
+          >
+            <h3>{role === "desk" ? "데스크" : "대기 근무"}</h3>
+            <div className="duty-people">{people("current", role)}</div>
           </div>
-          {status.data && staff.data ? (
-            <>
-              <ResourceError
-                error={status.error || staff.error}
-                retry={() => {
-                  void status.refresh();
-                  void staff.refresh();
-                }}
-              />
-              <div className="handoff">
-                {(["previous", "current", "next"] as const).map(
-                  (key, index) => {
-                    const at = key === "current" ? status.data!.at : status.data![`${key}_at`];
-                    const parts = at ? koreaParts(new Date(at)) : undefined;
-                    return (
-                    <article
-                      key={key}
-                      className={`shift ${index === 1 ? "current" : ""}`}
-                    >
-                      <div className="shift-head">
-                        <h3>
-                          {index === 1 && <i className="dot" />}
-                          {["이전 근무", "현재 근무", "다음 근무"][index]}
-                        </h3>
-                        <time dateTime={at ?? undefined}>
-                          {parts ? `${parts.hour}:${parts.minute}` : "예정 없음"}
-                        </time>
-                      </div>
-                      {(["desk", "general"] as const).map((role) => {
-                        const entries = status.data![key].filter(
-                          (shift) => shift.role === role,
-                        );
-                        return (
-                          <div
-                            key={role}
-                            className={`duty-group ${role === "desk" ? "desk-duty" : "standby-duty"}`}
-                          >
-                            <h3>
-                              {role === "desk" ? "데스크 담당" : "대기 근무"}
-                            </h3>
-                            <div className="duty-people">
-                              {entries.length ? (
-                                entries.map((shift) => (
-                                  <span className="duty-person" key={shift.id}>
-                                    {staff.data!.find(
-                                      (person) => person.id === shift.staff_id,
-                                    )?.name ?? "근무자"}
-                                  </span>
-                                ))
-                              ) : (
-                                <span className="unassigned">배정 없음</span>
-                              )}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </article>
-                    );
-                  },
-                )}
-              </div>
-            </>
-          ) : (
-            <Loading
-              error={status.error || staff.error}
-              retry={() => {
-                void status.refresh();
-                void staff.refresh();
-              }}
-            />
-          )}
-        </section>
-        <section className="card duty-card">
-          <div className="card-head">
-            <h2>당직</h2>
-            {user.role === "admin" && (
-              <button className="btn" onClick={() => setEditing(true)}>
-                수정
-              </button>
-            )}
-          </div>
-          {duty.data ? (
-            <>
-              <ResourceError error={duty.error} retry={duty.refresh} />
-              <dl className="duty-contact">
-                {[
-                  ["담당쌤", duty.data.teacher, "미등록"],
-                  ["내선번호", duty.data.extension, "미등록"],
-                  ["휴대폰 번호", duty.data.phone, "미등록"],
-                  [
-                    "이번 달 청소",
-                    cleaningRecord && cleaningNames(cleaningRecord),
-                    cleaning.data ? "미추첨" : "…",
-                  ],
-                ].map(([label, text, empty]) => (
-                  <div key={label}>
-                    <dt>{label}</dt>
-                    <dd className={text ? undefined : "duty-empty"}>
-                      {text || empty}
-                    </dd>
-                  </div>
-                ))}
-              </dl>
-            </>
-          ) : (
-            <Loading error={duty.error} retry={duty.refresh} />
-          )}
-        </section>
+        ))}
       </div>
-      <section className="card issues-card" aria-label="오늘의 이슈">
-        <div className="card-head">
-          <h2>오늘의 이슈</h2>
-          <div className="issue-card-actions">
-            <button className="text-btn" onClick={showIssues}>주간 보기 ›</button>
-            <button className="btn primary" onClick={() => setAddingIssue(true)}>＋ 새 이슈</button>
-          </div>
-        </div>
-        <TodayIssues resource={dailyIssues} user={user} onChanged={issues.refresh} />
-      </section>
+    </>
+  );
+  const dialogs = (
+    <>
       {addingIssue && (
         <IssueEditor
           day={day}
@@ -194,6 +125,159 @@ export default function Dashboard({
       {editing && (
         <DutyEditor onClose={() => setEditing(false)} onSaved={duty.refresh} />
       )}
+    </>
+  );
+  if (mobile) return (
+    <section id="dashboard" className="view" aria-label="근무 대시보드">
+      <section className="card now-card" aria-labelledby="now-title">
+        {nowHead}
+        {status.data && staff.data ? (
+          <>
+            {nowRoles()}
+            <div className="shift-neighbors">{neighbor("previous")}{neighbor("next")}</div>
+          </>
+        ) : (
+          <Loading error={status.error || staff.error} retry={retryStatus} />
+        )}
+        <div className="now-duty" aria-label="오늘의 당직">
+          {duty.data ? (
+            <>
+              <ResourceError error={duty.error} retry={duty.refresh} />
+              <p>
+                <b>당직</b>
+                <span>
+                  {duty.data.teacher || "아직 정해지지 않았어요"}
+                  {duty.data.extension && ` · 내선 ${duty.data.extension}`}
+                </span>
+              </p>
+              {duty.data.phone && (
+                <a className="btn call-btn" href={`tel:${duty.data.phone}`} aria-label={`당직 ${duty.data.teacher} 휴대폰 ${duty.data.phone}로 전화`}>
+                  <Icon name="phone" />
+                  전화
+                </a>
+              )}
+              {user.role === "admin" && (
+                <button className="text-btn" aria-label="당직 정보 수정" onClick={() => setEditing(true)}>
+                  수정
+                </button>
+              )}
+            </>
+          ) : (
+            <Loading error={duty.error} retry={duty.refresh} />
+          )}
+        </div>
+      </section>
+      <section className="card list-card" aria-labelledby="today-issues-title">
+        <div className="card-head">
+          <h2 id="today-issues-title">오늘 할 일</h2>
+        </div>
+        <TodayIssues resource={dailyIssues} user={user} onChanged={issues.refresh} />
+      </section>
+      <button className="btn primary fab" onClick={() => setAddingIssue(true)}>
+        <Icon name="plus" />
+        새 이슈
+      </button>
+      {dialogs}
+    </section>
+  );
+  return (
+    <section id="dashboard" className="view" aria-label="근무 대시보드">
+      <div className="dashboard-grid">
+        <section className="card now-card" aria-labelledby="now-title">
+          {nowHead}
+          {status.data && staff.data ? (
+            <>
+              {nowRoles()}
+              <div className="shift-neighbors">
+                {(["previous", "next"] as const).map((key) => {
+                  const at = status.data![`${key}_at`];
+                  const parts = at ? koreaParts(new Date(at)) : undefined;
+                  return (
+                    <article key={key} className="shift">
+                      <div className="shift-head">
+                        <h3>{key === "previous" ? "이전 근무" : "다음 근무"}</h3>
+                        <time dateTime={at ?? undefined}>
+                          {parts ? `${parts.hour}:${parts.minute}` : "예정 없음"}
+                        </time>
+                      </div>
+                      {(["desk", "general"] as const).map((role) => (
+                        <p key={role} className={`shift-line ${role === "desk" ? "is-desk" : "is-standby"}`}>
+                          <span className="shift-role">{role === "desk" ? "데스크" : "대기"}</span>
+                          <span className="duty-people">{people(key, role)}</span>
+                        </p>
+                      ))}
+                    </article>
+                  );
+                })}
+              </div>
+            </>
+          ) : (
+            <Loading error={status.error || staff.error} retry={retryStatus} />
+          )}
+        </section>
+        <section className="card duty-card" aria-labelledby="duty-title">
+          <div className="card-head">
+            <h2 id="duty-title">오늘의 당직</h2>
+          </div>
+          {duty.data ? (
+            <>
+              <ResourceError error={duty.error} retry={duty.refresh} />
+              <dl className="duty-contact">
+                <div>
+                  <dt>담당쌤</dt>
+                  <dd className={duty.data.teacher ? undefined : "duty-empty"}>
+                    {duty.data.teacher || "아직 정해지지 않았어요"}
+                  </dd>
+                </div>
+                <div>
+                  <dt>내선번호</dt>
+                  <dd className={duty.data.extension ? undefined : "duty-empty"}>
+                    {duty.data.extension || "미등록"}
+                  </dd>
+                </div>
+                <div>
+                  <dt>휴대폰</dt>
+                  <dd className={duty.data.phone ? "duty-phone" : "duty-empty"}>
+                    {duty.data.phone ? (
+                      <>
+                        {duty.data.phone}
+                        <a className="btn call-btn" href={`tel:${duty.data.phone}`}>
+                          <Icon name="phone" />
+                          전화
+                        </a>
+                      </>
+                    ) : (
+                      "미등록"
+                    )}
+                  </dd>
+                </div>
+              </dl>
+            </>
+          ) : (
+            <Loading error={duty.error} retry={duty.refresh} />
+          )}
+        </section>
+      </div>
+      <section className="card issues-card" aria-labelledby="today-issues-title">
+        <div className="card-head">
+          <h2 id="today-issues-title">
+            <button className="title-link" onClick={showIssues} aria-label="오늘의 이슈 · 주간 이슈로 이동">
+              오늘의 이슈 <Icon name="chevron" />
+            </button>
+          </h2>
+          <button className="btn small" onClick={() => setAddingIssue(true)}>
+            <Icon name="plus" />
+            새 이슈
+          </button>
+        </div>
+        <TodayIssues resource={dailyIssues} user={user} onChanged={issues.refresh} />
+      </section>
+      {user.role === "admin" && (
+        <AdminMenu>
+          <button type="button" onClick={() => setEditing(true)}>당직 정보 수정</button>
+        </AdminMenu>
+      )}
+      {dialogs}
     </section>
   );
 }
@@ -272,8 +356,8 @@ function DutyForm({
         <input type="tel" value={selected?.phone ?? ""} readOnly />
       </Field>
       <p className="hint">
-        연락처는 인적관리에서 가져옵니다. 당직은 한국 시간 기준 다음 날
-        초기화됩니다.
+        연락처는 인적관리에 등록된 정보를 가져와요. 당직은 다음 날(한국 시간)
+        자동으로 초기화돼요.
       </p>
     </Form>
   );
