@@ -535,18 +535,35 @@ function ManualEditor({
   const file = useRef<HTMLInputElement>(null);
   const deferred = useDeferredValue(text);
   const preview = useMemo(() => parse(deferred), [deferred]);
-  async function insertImage(picked: File) {
-    if (!imageTypes.split(",").includes(picked.type)) throw new Error("PNG, JPEG, GIF, WebP 이미지만 올릴 수 있어요.");
-    if (picked.size > 5 * 1024 * 1024) throw new Error("이미지는 5MB 이하만 올릴 수 있어요.");
-    const { name } = await upload<{ name: string }>("/manual/images", picked);
+  // 여러 장을 차례로 올린다. 서버가 안전한 파일 이름은 그대로 두므로, 본문이 이미 그 이름을
+  // 참조하고 있으면(manual.md를 붙여 넣은 경우) 연결만 되고 새로 삽입하지 않는다.
+  async function insertImages(picked: File[]) {
+    for (const one of picked) {
+      if (!imageTypes.split(",").includes(one.type)) throw new Error(`${one.name}: PNG, JPEG, GIF, WebP 이미지만 올릴 수 있어요.`);
+      if (one.size > 5 * 1024 * 1024) throw new Error(`${one.name}: 이미지는 5MB 이하만 올릴 수 있어요.`);
+    }
     const element = area.current!;
-    const snippet = `![](manual-image:${name})`;
-    const at = element.selectionStart;
-    setText((old) => old.slice(0, at) + snippet + old.slice(element.selectionEnd));
-    requestAnimationFrame(() => {
-      element.focus();
-      element.setSelectionRange(at + 2, at + 2); // 설명을 바로 쓸 수 있게 [] 안으로
-    });
+    const added: string[] = [];
+    let linked = 0;
+    for (const one of picked) {
+      const { name } = await upload<{ name: string }>("/manual/images", one);
+      if (element.value.includes(`manual-image:${name})`)) linked++;
+      else added.push(`![](manual-image:${name})`);
+    }
+    if (added.length) {
+      const snippet = added.join("\n");
+      const at = element.selectionStart;
+      setText((old) => old.slice(0, at) + snippet + old.slice(element.selectionEnd));
+      requestAnimationFrame(() => {
+        element.focus();
+        element.setSelectionRange(at + 2, at + 2); // 설명을 바로 쓸 수 있게 첫 [] 안으로
+      });
+    }
+    notice(
+      [linked && `${linked}장은 본문에 연결됐어요`, added.length && `${added.length}장을 커서 위치에 넣었어요`]
+        .filter(Boolean)
+        .join(", ") + ".",
+    );
   }
   return (
     <section className="card manual-editor" aria-label="매뉴얼 편집">
@@ -557,14 +574,15 @@ function ManualEditor({
             ref={file}
             type="file"
             accept={imageTypes}
+            multiple
             hidden
             onChange={async (event) => {
-              const picked = event.currentTarget.files?.[0];
+              const picked = [...(event.currentTarget.files ?? [])];
               event.currentTarget.value = "";
-              if (!picked) return;
+              if (!picked.length) return;
               setUploading(true);
               try {
-                await insertImage(picked);
+                await insertImages(picked);
               } catch (error) {
                 notice(message(error));
               } finally {
