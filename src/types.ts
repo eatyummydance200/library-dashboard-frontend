@@ -109,3 +109,8 @@ export interface CleaningRecord {
   created_at: string;
   staff: { id: number; name: string }[];
 }
+export interface ManualData {
+  content: string;
+  updated_at: string | null;
+  updated_by: string | null;
+}
