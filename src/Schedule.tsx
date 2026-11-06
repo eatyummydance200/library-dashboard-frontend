@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import type { ReactNode } from "react";
 import type { CSSProperties, PointerEvent as ReactPointerEvent } from "react";
 import { api, useResource } from "./api";
 import torch from "../static/torch.gif";
@@ -11,17 +12,21 @@ import {
   monday,
   shortDay,
   time,
-  today,
   weekLabel,
 } from "./dates";
+import { WeekStepper } from "./Issues";
+import { DayStrip, todayIndex } from "./DayStrip";
+import "./schedule.css";
 import {
   Action,
+  AdminMenu,
   Field,
   Form,
   Loading,
   Modal,
   ResourceError,
   numeric,
+  useMobile,
   useNotice,
   value,
 } from "./ui";
@@ -77,13 +82,13 @@ export default function Schedule({ user }: { user: User }) {
   const hours = useResource<{ overrides: WeeklyHours[] }>("/schedule/hours");
   const [editingHours, setEditingHours] = useState<number | null>(null);
   const [clock, setClock] = useState(koreaParts());
-  const [day, setDay] = useState(
-    Math.min((new Date(`${today()}T00:00:00Z`).getUTCDay() + 6) % 7, 4),
-  );
   const [person, setPerson] = useState("");
   const [editor, setEditor] = useState<{ shift?: Shift; draft?: Draft } | null>(null);
   const [adjust, setAdjust] = useState<{ id: number; start: number; end: number } | null>(null);
   const [copying, setCopying] = useState(false);
+  const [confirmedEditor, setConfirmedEditor] = useState<{ shift?: Shift } | null>(null);
+  const [day, setDay] = useState(todayIndex);
+  const mobile = useMobile();
   const admin = user.role === "admin";
   const notice = useNotice();
   useEffect(() => {
@@ -103,6 +108,14 @@ export default function Schedule({ user }: { user: User }) {
     };
   }, [data.refresh, table.refresh, hours.refresh]);
   const dates = days.map((_, index) => addDays(week, index));
+  const savedOriginal = async () => { await Promise.all([table.refresh(), hours.refresh()]); };
+  const canSaveFirst = !!data.data?.shifts.length && !data.error && !original.error;
+  async function saveFirst() {
+    if (!data.data || !confirm("현재 주간 근무표를 최초 확정표로 저장할까요?")) return;
+    await api("/schedule/original", "PUT", { shifts: data.data.shifts.map(toConfirmed) });
+    await savedOriginal();
+    notice("확정된 근무 시간표를 저장했어요.");
+  }
   const visibleShifts = data.data?.shifts.map((shift) => shift.id === adjust?.id ? { ...shift, start: adjust.start, end: adjust.end } : shift) ?? [];
   // Drag a handle to resize a shift. Bounds are checked here so an invalid length can't be produced;
   // the server still validates on save. The new length shows immediately and reverts if saving fails.
@@ -153,93 +166,77 @@ export default function Schedule({ user }: { user: User }) {
     dates.includes(todayKey) && minute >= 540 && minute < 1320
       ? Math.floor((minute - 540) / 30)
       : -1;
+  const now = slot >= 0 ? { slot, minute, clock: `${clock.hour}:${clock.minute}` } : undefined;
+  const changedOn = (index: number) => comparing
+    ? changes(visibleShifts.filter((shift) => shift.day === dates[index]), table.data!.shifts.filter((entry) => entry.weekday === index + 1))
+    : new Set<number>();
+  // 화면의 블록은 드래그 중 길이가 바뀐 사본일 수 있어 원본을 찾아 넘긴다.
+  const find = (shift: Shift) => data.data!.shifts.find((entry) => entry.id === shift.id)!;
+  const editing = admin ? {
+    onAdd: (draft: Draft) => setEditor({ draft }),
+    onEdit: (shift: Shift) => setEditor({ shift: find(shift) }),
+    onResize: (event: ReactPointerEvent<HTMLSpanElement>, shift: Shift, edge: "start" | "end") => startResize(event, find(shift), edge),
+  } : {};
   return (
-    <section className="view schedule-workspace" aria-label="주간 시간표">
-      <div className="compact-schedule">
-        <div className="card schedule-only">
-          <div className="card-head schedule-head">
-            <h2>주간 근무 시간표</h2>
-            <div className="week-controls">
-              <button
-                className="icon-btn"
-                aria-label="이전 주"
-                onClick={() => setWeek(addDays(week, -7))}
-              >
-                ‹
-              </button>
-              <strong className={week === monday() ? "current-week" : undefined}>
-                {weekLabel(week)}
-              </strong>
-              <button
-                className="icon-btn"
-                aria-label="다음 주"
-                onClick={() => setWeek(addDays(week, 7))}
-              >
-                ›
-              </button>
+    <section className="view schedule-workspace" aria-label={mobile ? "시간표" : "주간 시간표"}>
+      {mobile ? (
+        <>
+          <DayStrip week={week} day={day} onWeek={setWeek} onDay={setDay} label="시간표 요일 선택" />
+          {data.data ? (
+            <div className="card schedule-card">
+              <ResourceError error={data.error} retry={data.refresh} />
+              <div className="legend day-legend">
+                <span className="desk-legend"><i />데스크</span>
+                <span className="standby-legend"><i />대기</span>
+                <span className="changed-legend"><i />변동</span>
+              </div>
+              <div className="schedule-table">
+                <div className="week-board day-board" style={{ "--slot-count": 26 } as CSSProperties} aria-label={`${shortDay(dates[day])} ${days[day]}요일 30분 단위 근무 시간표`}>
+                  <TimeAxis slot={dates[day] === todayKey ? slot : -1} />
+                  <DayTrack
+                    date={dates[day]}
+                    shifts={visibleShifts.filter((shift) => shift.day === dates[day])}
+                    staff={data.data.staff}
+                    changed={changedOn(day)}
+                    mine={user.staff_id}
+                    today={dates[day] === todayKey}
+                    now={dates[day] === todayKey ? now : undefined}
+                    {...editing}
+                  />
+                </div>
+              </div>
             </div>
-          </div>
-          <div className="schedule-tools">
+          ) : (
+            <section className="card"><Loading error={data.error} retry={data.refresh} /></section>
+          )}
+        </>
+      ) : (
+      <div className="card schedule-card">
+          <div className="board-head">
+            <WeekStepper
+              label={weekLabel(week)}
+              current={week === monday()}
+              onMove={(offset) => setWeek(addDays(week, offset * 7))}
+              onToday={() => setWeek(monday())}
+            />
             <div className="legend">
-              <span className="desk-legend">
-                <i />
-                데스크
-              </span>
-              <span className="standby-legend">
-                <i />
-                대기
-              </span>
-              <span className="changed-legend"><i />변동사항</span>
+              <span className="desk-legend"><i />데스크</span>
+              <span className="standby-legend"><i />대기</span>
+              <span className="changed-legend"><i />변동</span>
             </div>
-            <div className="schedule-filters">
-              {admin && (
-                <>
-                  <button
-                    className="btn"
-                    disabled={!data.data}
-                    onClick={() => setEditor({})}
-                  >
-                    ＋ 근무 추가
-                  </button>
-                  <button
-                    className="btn"
-                    disabled={!data.data}
-                    onClick={() => setCopying(true)}
-                  >
-                    확정표에서 가져오기
-                  </button>
-                </>
-              )}
-              <select
-                className="select"
-                aria-label="시간표 근무자 선택"
-                value={person}
-                onChange={(event) => setPerson(event.target.value)}
-              >
-                <option value="">전체 근무자</option>
-                {data.data?.staff.map((person) => (
-                  <option key={person.id} value={person.id}>
-                    {person.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-          <div
-            className="day-picker"
-            role="group"
-            aria-label="시간표 요일 선택"
-          >
-            {days.map((label, index) => (
-              <button
-                key={label}
-                aria-pressed={day === index}
-                onClick={() => setDay(index)}
-              >
-                {label}
-                <small>{shortDay(dates[index])}</small>
-              </button>
-            ))}
+            <select
+              className="select small"
+              aria-label="시간표 근무자 선택"
+              value={person}
+              onChange={(event) => setPerson(event.target.value)}
+            >
+              <option value="">모든 근무자</option>
+              {data.data?.staff.map((person) => (
+                <option key={person.id} value={person.id}>
+                  {person.name}만 강조
+                </option>
+              ))}
+            </select>
           </div>
           {data.data ? (
             <>
@@ -250,125 +247,29 @@ export default function Schedule({ user }: { user: User }) {
                   style={{ "--slot-count": 26 } as CSSProperties}
                   aria-label="30분 단위 주간 근무 시간표"
                 >
-                  <div className="time-axis">
-                    <div className="day-heading">시간</div>
-                    <div className="time-ticks">
-                      {Array.from({ length: 26 }, (_, index) => (
-                        <div
-                          key={index}
-                          className={`time-tick ${index === slot ? "current-row" : ""} ${index % 2 ? "half-hour" : ""}`}
-                          aria-current={index === slot ? "time" : undefined}
-                        >
-                          {time(540 + index * 30)}
-                        </div>
-                      ))}
-                      <div className="time-tick">22:00</div>
-                    </div>
-                  </div>
-                  {dates.map((date, index) => {
-                    const dayShifts = visibleShifts.filter((shift) => shift.day === date);
-                    const changed = comparing
-                      ? changes(dayShifts, table.data!.shifts.filter((entry) => entry.weekday === index + 1))
-                      : new Set<number>();
-                    const placed = layout(dayShifts);
-                    return (
-                      <section
-                        key={date}
-                        className={`day-track ${index === day ? "selected-day" : ""} ${date === todayKey ? "today-col" : ""}`}
-                        aria-label={`${date} ${days[index]}요일`}
-                      >
-                        <h3 className="day-heading">
-                          {days[index]}
-                          <span>
-                            {shortDay(date)}
-                            {date === todayKey && " · 오늘"}
-                          </span>
-                        </h3>
-                        <div
-                          className={`track-grid ${admin ? "can-add" : ""}`}
-                          style={{ "--lanes": placed.lanes } as CSSProperties}
-                          title={admin ? "빈 곳을 눌러 근무 추가" : undefined}
-                          onClick={admin ? (event) => {
-                            if ((event.target as HTMLElement).closest(".worker")) return;
-                            const rect = event.currentTarget.getBoundingClientRect();
-                            const start = Math.min(1290, 540 + Math.floor(((event.clientY - rect.top) / rect.height) * 26) * 30);
-                            setEditor({ draft: { day: date, start, end: Math.min(1320, start + 60) } });
-                          } : undefined}
-                        >
-                          {placed.entries.map((shift) => {
-                            const name =
-                              data.data!.staff.find(
-                                (person) => person.id === shift.staff_id,
-                              )?.name ?? "근무자";
-                            const span = (shift.end - shift.start) / 30;
-                            const label = `${name} · ${time(shift.start)}–${time(shift.end)} · ${shift.role === "desk" ? "데스크" : "대기"}`;
-                            const position = { gridRow: `${(shift.start - 540) / 30 + 1}/span ${span}`, gridColumn: shift.lane + 1 };
-                            const differs = changed.has(shift.id) ? " · 변동사항" : "";
-                            return (
-                              <button
-                                key={shift.id}
-                                type="button"
-                                data-shift-id={shift.id}
-                                className={`worker ${shift.role === "desk" ? "desk" : "standby"} ${span === 1 ? "short-shift" : ""} ${person && person !== String(shift.staff_id) ? "dimmed" : ""} ${differs ? "changed" : ""}`}
-                                style={position}
-                                title={`${label}${differs}`}
-                                aria-label={`${label}${differs}${admin ? " · 근무 수정" : ""}`}
-                                onClick={admin ? () => setEditor({ shift: data.data!.shifts.find((entry) => entry.id === shift.id) }) : undefined}
-                              >
-                                <strong>{name}</strong>
-                                {admin && (["start", "end"] as const).map((edge) => (
-                                  <span
-                                    key={edge}
-                                    className={`resize-handle ${edge}`}
-                                    aria-hidden="true"
-                                    onPointerDown={(event) => startResize(event, data.data!.shifts.find((entry) => entry.id === shift.id)!, edge)}
-                                    onClick={(event) => event.stopPropagation()}
-                                  />
-                                ))}
-                              </button>
-                            );
-                          })}
-                          {!placed.entries.length && (
-                            <span className="empty-day">배정 없음</span>
-                          )}
-                          {date === todayKey && slot >= 0 && (
-                            <>
-                              <div
-                                className="current-band"
-                                style={{ top: `${(slot / 26) * 100}%` }}
-                              />
-                              <span
-                                className="now-line"
-                                style={{
-                                  top: `${((minute - 540) / 780) * 100}%`,
-                                }}
-                              >
-                                <img src={torch} alt="" />
-                                <span>
-                                  현재 {clock.hour}:{clock.minute}
-                                </span>
-                              </span>
-                            </>
-                          )}
-                        </div>
-                      </section>
-                    );
-                  })}
+                  <TimeAxis slot={slot} />
+                  {dates.map((date, index) => (
+                    <DayTrack
+                      key={date}
+                      date={date}
+                      shifts={visibleShifts.filter((shift) => shift.day === date)}
+                      staff={data.data!.staff}
+                      changed={changedOn(index)}
+                      dim={person}
+                      today={date === todayKey}
+                      now={date === todayKey ? now : undefined}
+                      {...editing}
+                    />
+                  ))}
                 </div>
               </div>
             </>
           ) : (
             <Loading error={data.error} retry={data.refresh} />
           )}
-        </div>
       </div>
+      )}
       <div className="schedule-row">
-        {original.data ? <ConfirmedSchedule key={week} week={original.data} current={data.error ? undefined : data.data} admin={admin} error={original.error} onSaved={async () => { await Promise.all([original.refresh(), hours.refresh()]); }} /> : (
-          <section className="card">
-            <div className="card-head"><h2>확정된 근무 시간표</h2></div>
-            <Loading error={original.error} retry={original.refresh} />
-          </section>
-        )}
         <section className="card stats-card">
           <div className="card-head">
             <h2>
@@ -384,9 +285,47 @@ export default function Schedule({ user }: { user: User }) {
               <ResourceError error={hours.error} retry={hours.refresh} />
               <Stats week={original.data} overrides={hours.data.overrides} onEdit={admin ? setEditingHours : undefined} />
             </> : <Loading error={hours.error} retry={hours.refresh} />
-          ) : original.data ? <p className="shift-issue-empty">확정된 근무 시간표를 먼저 저장해주세요.</p> : <Loading error={original.error} retry={original.refresh} />}
+          ) : original.data ? <p className="shift-issue-empty">확정된 근무 시간표를 먼저 저장해 주세요.</p> : <Loading error={original.error} retry={original.refresh} />}
         </section>
+        {original.data ? (
+          <ConfirmedSchedule
+            week={original.data}
+            mobile={mobile}
+            admin={admin}
+            error={original.error}
+            onSaved={savedOriginal}
+            onEdit={(shift) => setConfirmedEditor({ shift })}
+            actions={mobile && admin && (
+              <div className="schedule-actions">
+                <button type="button" className="btn small" disabled={!!original.error} onClick={() => setConfirmedEditor({})}>확정 근무 추가</button>
+                {original.data.saved
+                  ? <button type="button" className="btn small" disabled={!data.data} onClick={() => setCopying(true)}>이번 주에 붙여넣기</button>
+                  : <Action className="btn small" disabled={!canSaveFirst} run={saveFirst}>현재 주간표로 최초 확정</Action>}
+              </div>
+            )}
+          />
+        ) : (
+          <section className="card">
+            <div className="card-head"><h2>확정된 근무 시간표</h2></div>
+            <Loading error={original.error} retry={original.refresh} />
+          </section>
+        )}
       </div>
+      {admin && !mobile && (
+        <AdminMenu>
+          <button type="button" disabled={!data.data} onClick={() => setEditor({})}>근무 추가</button>
+          <button type="button" disabled={!data.data} onClick={() => setCopying(true)}>확정표 가져오기</button>
+          <hr />
+          <button type="button" disabled={!original.data || !!original.error} onClick={() => setConfirmedEditor({})}>확정 근무 추가</button>
+          {original.data && !original.data.saved && (
+            <Action disabled={!canSaveFirst} run={saveFirst}>현재 주간표로 최초 확정</Action>
+          )}
+          <p className="menu-hint">빈 칸을 누르면 근무 추가, 근무를 누르면 수정, 위·아래 끝을 끌면 길이를 바꿔요.</p>
+        </AdminMenu>
+      )}
+      {confirmedEditor && original.data && (
+        <ShiftEditor key={`${week}/${confirmedEditor.shift?.id ?? "new"}`} week={original.data} shift={confirmedEditor.shift} confirmed onClose={() => setConfirmedEditor(null)} onSaved={savedOriginal} />
+      )}
       {editingHours != null && original.data?.saved && hours.data && (
         <WeeklyHoursEditor
           key={`${week}/${editingHours}`}
@@ -435,9 +374,143 @@ export default function Schedule({ user }: { user: User }) {
     </section>
   );
 }
-function ConfirmedSchedule({ week, current, admin, error, onSaved }: { week: OriginalWeek; current?: Week; admin: boolean; error?: string; onSaved: () => Promise<void> }) {
-  const notice = useNotice();
-  const [editor, setEditor] = useState<{ shift?: Shift } | null>(null);
+function TimeAxis({ slot }: { slot: number }) {
+  return (
+    <div className="time-axis">
+      <div className="day-heading">시간</div>
+      <div className="time-ticks">
+        {Array.from({ length: 26 }, (_, index) => (
+          <div
+            key={index}
+            className={`time-tick ${index === slot ? "current-row" : ""} ${index % 2 ? "half-hour" : ""}`}
+            aria-current={index === slot ? "time" : undefined}
+          >
+            {time(540 + index * 30)}
+          </div>
+        ))}
+        <div className="time-tick">22:00</div>
+      </div>
+    </div>
+  );
+}
+// 하루 한 열의 근무 블록. 웹 주간표는 다섯 번, 모바일 하루 보기·확정표 요일 보기는 한 번 그린다.
+// onAdd/onEdit/onResize가 있으면 빈 칸 탭 추가, 블록 탭 편집, 위·아래 끝 드래그 조정을 켠다.
+function DayTrack({ date, shifts, staff, changed, dim = "", mine, today = false, now, editLabel = "근무 수정", onAdd, onEdit, onResize }: {
+  date: string;
+  shifts: Shift[];
+  staff: Week["staff"];
+  changed: Set<number>;
+  dim?: string;
+  mine?: number | null;
+  today?: boolean;
+  now?: { slot: number; minute: number; clock: string };
+  editLabel?: string;
+  onAdd?: (draft: Draft) => void;
+  onEdit?: (shift: Shift) => void;
+  onResize?: (event: ReactPointerEvent<HTMLSpanElement>, shift: Shift, edge: "start" | "end") => void;
+}) {
+  const weekday = weekdayOf(date) - 1;
+  const placed = layout(shifts);
+  return (
+    <section className={`day-track ${today ? "today-col" : ""}`} aria-label={`${date} ${days[weekday]}요일`}>
+      <h3 className="day-heading">
+        {days[weekday]}
+        <span>
+          {shortDay(date)}
+          {today && " · 오늘"}
+        </span>
+      </h3>
+      <div
+        className={`track-grid ${onAdd ? "can-add" : ""}`}
+        style={{ "--lanes": placed.lanes } as CSSProperties}
+        title={onAdd ? "빈 곳을 눌러 근무 추가" : undefined}
+        onClick={onAdd ? (event) => {
+          if ((event.target as HTMLElement).closest(".worker")) return;
+          const rect = event.currentTarget.getBoundingClientRect();
+          const start = Math.min(1290, 540 + Math.floor(((event.clientY - rect.top) / rect.height) * 26) * 30);
+          onAdd({ day: date, start, end: Math.min(1320, start + 60) });
+        } : undefined}
+      >
+        {placed.entries.map((shift) => {
+          const name = staff.find((person) => person.id === shift.staff_id)?.name ?? "근무자";
+          const span = (shift.end - shift.start) / 30;
+          const isMine = mine != null && mine === shift.staff_id;
+          const label = `${name}${isMine ? "(나)" : ""} · ${time(shift.start)}–${time(shift.end)} · ${shift.role === "desk" ? "데스크" : "대기"}`;
+          const position = { gridRow: `${(shift.start - 540) / 30 + 1}/span ${span}`, gridColumn: shift.lane + 1 };
+          const differs = changed.has(shift.id) ? " · 변동사항" : "";
+          return (
+            <button
+              key={shift.id}
+              type="button"
+              data-shift-id={shift.id}
+              className={`worker ${shift.role === "desk" ? "desk" : "standby"} ${span === 1 ? "short-shift" : ""} ${dim && dim !== String(shift.staff_id) ? "dimmed" : ""} ${differs ? "changed" : ""} ${isMine ? "mine" : ""}`}
+              style={position}
+              title={`${label}${differs}`}
+              aria-label={`${label}${differs}${onEdit ? ` · ${editLabel}` : ""}`}
+              onClick={onEdit && (() => onEdit(shift))}
+            >
+              <strong>{name}</strong>
+              {span > 1 && <small className="worker-time">{time(shift.start)}–{time(shift.end)}</small>}
+              {onResize && (["start", "end"] as const).map((edge) => (
+                <span
+                  key={edge}
+                  className={`resize-handle ${edge}`}
+                  aria-hidden="true"
+                  onPointerDown={(event) => onResize(event, shift, edge)}
+                  onClick={(event) => event.stopPropagation()}
+                />
+              ))}
+            </button>
+          );
+        })}
+        {!placed.entries.length && <span className="empty-day">이 날은 근무가 없어요</span>}
+        {now && (
+          <>
+            <div className="current-band" style={{ top: `${(now.slot / 26) * 100}%` }} />
+            <span className="now-line" style={{ top: `${((now.minute - 540) / 780) * 100}%` }}>
+              <img src={torch} alt="" />
+              <span>현재 {now.clock}</span>
+            </span>
+          </>
+        )}
+      </div>
+    </section>
+  );
+}
+// 모바일: 확정표를 요일 하나씩, 하루 한 열 블록으로 본다.
+function ConfirmedDay({ week, admin, error, onEdit }: { week: OriginalWeek; admin: boolean; error?: string; onEdit: (shift: Shift) => void }) {
+  const [weekday, setWeekday] = useState(todayIndex);
+  const date = addDays(week.week, weekday);
+  return (
+    <>
+      <div className="day-picker" role="group" aria-label="확정표 요일 선택">
+        {days.map((name, index) => {
+          const count = week.shifts.filter((shift) => shift.day === addDays(week.week, index)).length;
+          return (
+            <button key={name} type="button" aria-pressed={weekday === index} aria-label={`${name}요일 · 확정 근무 ${count}개`} onClick={() => setWeekday(index)}>
+              {name}
+              <small>{count}개</small>
+            </button>
+          );
+        })}
+      </div>
+      <div className="schedule-table">
+        <div className="week-board day-board" style={{ "--slot-count": 26 } as CSSProperties} aria-label={`${days[weekday]}요일 확정 근무 시간표`}>
+          <TimeAxis slot={-1} />
+          <DayTrack
+            date={date}
+            shifts={week.shifts.filter((shift) => shift.day === date)}
+            staff={week.staff}
+            changed={new Set()}
+            editLabel="확정 근무 수정"
+            onEdit={admin && !error ? onEdit : undefined}
+          />
+        </div>
+      </div>
+    </>
+  );
+}
+function ConfirmedSchedule({ week, mobile, admin, error, actions, onSaved, onEdit }: { week: OriginalWeek; mobile: boolean; admin: boolean; error?: string; actions?: ReactNode; onSaved: () => Promise<void>; onEdit: (shift: Shift) => void }) {
   const dates = days.map((_, index) => addDays(week.week, index));
   const lanes = 4;
   const rows = Array.from({ length: 13 }, (_, index) => {
@@ -456,23 +529,16 @@ function ConfirmedSchedule({ week, current, admin, error, onSaved }: { week: Ori
     }) };
   });
   return (
-    <section className="card schedule-copy-card" aria-label="확정된 근무 시간표">
+    <section className="card schedule-copy-card">
       <div className="card-head">
         <h2>확정된 근무 시간표</h2>
-        <div className="issue-card-actions">
-          {admin && <>
-            <button className="btn" disabled={!!error} onClick={() => setEditor({})}>추가</button>
-            {!week.saved && <Action disabled={!current?.shifts.length || !!error} run={async () => {
-              if (!current || !confirm("현재 주간 근무표를 최초 확정표로 저장할까요?")) return;
-              await api("/schedule/original", "PUT", { shifts: current.shifts.map(toConfirmed) });
-              await onSaved();
-              notice("확정된 근무 시간표를 저장했어요.");
-            }}>현재 주간표로 최초 확정</Action>}
-          </>}
-        </div>
+        <span className="fold-hint">매주 기본이 되는 표예요</span>
       </div>
+      {actions}
       <ResourceError error={error} retry={onSaved} />
-      {!week.saved ? <p className="shift-issue-empty">근무를 직접 추가하거나 현재 주간표를 최초 확정표로 저장해주세요.</p> : (
+      {!week.saved ? <p className="shift-issue-empty">{admin ? `${mobile ? "위 버튼으로" : "관리 메뉴에서"} 확정 근무를 추가하거나 현재 주간표를 최초 확정표로 저장해 주세요.` : "아직 확정표가 없어요."}</p> : mobile ? (
+        <ConfirmedDay week={week} admin={admin} error={error} onEdit={onEdit} />
+      ) : (
         <div className="table-inset">
           <table className="schedule-copy-table confirmed-schedule-table">
             <caption className="sr-only">확정된 근무 시간표</caption>
@@ -489,7 +555,7 @@ function ConfirmedSchedule({ week, current, admin, error, onSaved }: { week: Ori
                   {cells.map((entries, index) => <td key={index} className={index % lanes === 0 ? "confirmed-day-start" : undefined}>
                     <div className="confirmed-hour">
                       {entries.map(({ shift, name, top, height }) => admin ? (
-                        <button key={shift.id} className={`confirmed-entry ${shift.role === "desk" ? "copy-desk" : "copy-standby"}`} style={{ top, height }} disabled={!!error} title={`${name} · ${time(shift.start)}–${time(shift.end)}`} aria-label={`${days[Math.floor(index / lanes)]} ${name} · ${time(shift.start)}–${time(shift.end)} · ${shift.role === "desk" ? "데스크" : "대기"} · 확정 근무 수정`} onClick={() => setEditor({ shift })}>{name}</button>
+                        <button key={shift.id} className={`confirmed-entry ${shift.role === "desk" ? "copy-desk" : "copy-standby"}`} style={{ top, height }} disabled={!!error} title={`${name} · ${time(shift.start)}–${time(shift.end)}`} aria-label={`${days[Math.floor(index / lanes)]} ${name} · ${time(shift.start)}–${time(shift.end)} · ${shift.role === "desk" ? "데스크" : "대기"} · 확정 근무 수정`} onClick={() => onEdit(shift)}>{name}</button>
                       ) : <span key={shift.id} className={`confirmed-entry ${shift.role === "desk" ? "copy-desk" : "copy-standby"}`} style={{ top, height }} title={`${name} · ${time(shift.start)}–${time(shift.end)}`}>{name}</span>)}
                     </div>
                   </td>)}
@@ -499,7 +565,6 @@ function ConfirmedSchedule({ week, current, admin, error, onSaved }: { week: Ori
           </table>
         </div>
       )}
-      {editor && <ShiftEditor key={`${week.week}/${editor.shift?.id ?? "new"}`} week={week} shift={editor.shift} confirmed onClose={() => setEditor(null)} onSaved={onSaved} />}
     </section>
   );
 }
@@ -519,45 +584,41 @@ function originalHours(week: Week, person: number): WeeklyHours {
 }
 function Stats({ week, overrides, onEdit }: { week: Week; overrides: WeeklyHours[]; onEdit?: (person: number) => void }) {
   return (
-    <div className="table-inset">
-      <div className="stats-columns">
-        <span>근무자</span>
-        <span>총 시간</span>
-        <span className="blue">데스크 시간</span>
-        <span>오픈</span>
-        <span>마감</span>
-      </div>
-      <div className="stats-rows">
-        {week.staff.map((person) => {
-          const override = overrides.find((entry) => entry.staff_id === person.id);
-          const result = override ?? originalHours(week, person.id);
-          return (
-            <div className="staff-row" key={person.id}>
-              <div className="staff-name">
-                {onEdit ? <button type="button" className="text-btn" aria-label={`${person.name} 주당 근무 시간 조정`} onClick={() => onEdit(person.id)}>{person.name}</button> : person.name}
-                {override && <small className="hours-adjusted">조정</small>}
-              </div>
-              <span>
-                {result.total_minutes / 60}
-                <small>h</small>
-              </span>
-              <span className="blue">
-                {result.desk_minutes / 60}
-                <small>h</small>
-              </span>
-              <span>
-                {result.opens}
-                <small>회</small>
-              </span>
-              <span>
-                {result.closes}
-                <small>회</small>
-              </span>
-            </div>
-          );
-        })}
-      </div>
-    </div>
+    <ul className="stat-list">
+      {week.staff.map((person) => {
+        const override = overrides.find((entry) => entry.staff_id === person.id);
+        const result = override ?? originalHours(week, person.id);
+        const metrics: [string, number, string][] = [
+          ["총", result.total_minutes / 60, "h"],
+          ["데스크", result.desk_minutes / 60, "h"],
+          ["오픈", result.opens, "회"],
+          ["마감", result.closes, "회"],
+        ];
+        const body = (
+          <>
+            <span className="stat-name">
+              {person.name}
+              {override && <small className="hours-adjusted">조정됨</small>}
+            </span>
+            <span className="stat-metrics">
+              {metrics.map(([label, amount, unit]) => (
+                <span key={label} className={label === "데스크" ? "blue" : undefined}>
+                  <small className="stat-label">{label}</small>
+                  <b>{amount}<small>{unit}</small></b>
+                </span>
+              ))}
+            </span>
+          </>
+        );
+        return (
+          <li key={person.id} className="stat-item">
+            {onEdit ? (
+              <button type="button" className="stat-edit" aria-label={`${person.name} 주당 근무 시간 조정`} onClick={() => onEdit(person.id)}>{body}</button>
+            ) : body}
+          </li>
+        );
+      })}
+    </ul>
   );
 }
 function WeeklyHoursEditor({ week, person, override, onClose, onSaved }: {
