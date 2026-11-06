@@ -18,6 +18,7 @@ import Schedule from "./Schedule";
 import People from "./People";
 import Issues from "./Issues";
 import Monthly from "./Monthly";
+import Manual from "./Manual";
 
 // [키, 탭 이름, 아이콘]. 웹은 탭 이름이 화면 제목 역할을 하고, 모바일은 하단 탭바에 아이콘을 쓴다.
 const navigation = [
@@ -26,6 +27,7 @@ const navigation = [
   ["people", "인적관리", "people"],
   ["issues", "이슈", "message"],
   ["monthly", "월간 업무", "archive"],
+  ["manual", "매뉴얼", "book"],
 ] as const;
 type View = (typeof navigation)[number][0];
 interface Session {
@@ -70,7 +72,8 @@ export default function App() {
     document.body.classList.toggle("auth-page", !user);
     const path = user ? "/library-dashboard" : "/login";
     if (window.location.pathname !== path) {
-      window.history.replaceState(null, "", path);
+      // #manual/2-1 같은 섹션 링크는 로그인을 거쳐도 유지
+      window.history.replaceState(null, "", path + window.location.hash);
     }
   }, [user]);
   return (
@@ -168,15 +171,25 @@ function Login({ onLoginStart, onLogin }: {
   );
 }
 function Workspace({ user, onLogout }: { user: User; onLogout: () => void }) {
-  const [view, setView] = useState<View>("dashboard");
+  const manualHash = () => window.location.hash.startsWith("#manual");
+  const [view, setView] = useState<View>(() => (manualHash() ? "manual" : "dashboard"));
   const [dialog, setDialog] = useState<"account" | "password" | null>(null);
   const issues = useResource<Issue[]>("/issues");
   const [slot, setSlot] = useState<HTMLElement | null>(null);
   useEffect(() => {
     document.body.dataset.page = view;
-    // 탭을 바꾸면 새 화면의 맨 위부터 보여준다
+    if (view !== "manual" && manualHash())
+      window.history.replaceState(null, "", window.location.pathname);
+    // 탭을 바꾸면 새 화면의 맨 위부터 보여준다 (매뉴얼은 #manual/섹션으로 직접 스크롤)
     window.scrollTo?.(0, 0);
   }, [view]);
+  useEffect(() => {
+    const open = () => {
+      if (manualHash()) setView("manual");
+    };
+    window.addEventListener("hashchange", open);
+    return () => window.removeEventListener("hashchange", open);
+  }, []);
   useEffect(() => {
     const refresh = () => {
       if (!document.hidden) void issues.refresh();
@@ -250,6 +263,7 @@ function Workspace({ user, onLogout }: { user: User; onLogout: () => void }) {
         {view === "people" && <People user={user} />}
         {view === "issues" && <Issues resource={issues} user={user} />}
         {view === "monthly" && <Monthly user={user} />}
+        {view === "manual" && <Manual user={user} />}
         </AdminSlot.Provider>
       </main>
       {mobile && (

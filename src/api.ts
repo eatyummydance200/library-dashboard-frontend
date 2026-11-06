@@ -33,13 +33,14 @@ export function api<T>(
     // Read after our pending saves so navigation cannot restore an older checkbox state.
     if (method === "GET") await Promise.allSettled([...pendingWrites]);
     const headers: Record<string, string> = { Accept: "application/json" };
-    if (body !== undefined) headers["Content-Type"] = "application/json";
+    const form = body instanceof FormData;
+    if (body !== undefined && !form) headers["Content-Type"] = "application/json";
     if (method !== "GET") headers["X-CSRF-Token"] = csrf;
     const connectionError = "서버에 연결할 수 없습니다. 잠시 후 다시 시도해주세요.";
     const response = await fetch(`${base}/api${path}`, {
       method,
       headers,
-      body: body === undefined ? undefined : JSON.stringify(body),
+      body: body === undefined || form ? (body as FormData | undefined) : JSON.stringify(body),
       credentials: "same-origin",
       cache: "no-store",
       signal,
@@ -69,6 +70,13 @@ export function api<T>(
     }
     return data as T;
   }
+}
+
+// multipart 업로드. 브라우저가 boundary를 붙이도록 Content-Type은 비워 둔다.
+export function upload<T>(path: string, file: File) {
+  const form = new FormData();
+  form.append("file", file);
+  return api<T>(path, "POST", form);
 }
 
 export function useResource<T>(path: string) {
