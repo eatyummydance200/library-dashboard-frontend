@@ -47,7 +47,7 @@ export default function Issues({ resource, user }: { resource: IssuesResource; u
   const dates = days.map((_, index) => addDays(week, index));
   const list = (date: string, empty: string) => (
     <IssueList
-      resource={{ ...weekly, error: undefined, data: weekly.data!.filter((issue) => issue.day === date) }}
+      resource={{ ...weekly, error: undefined, data: weekly.data!.filter((issue) => covers(issue, date)) }}
       filter={filter}
       user={user}
       onChanged={resource.refresh}
@@ -73,7 +73,7 @@ export default function Issues({ resource, user }: { resource: IssuesResource; u
             onWeek={setWeek}
             onDay={setDay}
             label="이슈 요일 선택"
-            counts={dates.map((date) => weekly.data?.filter((issue) => issue.day === date && !issue.done).length ?? 0)}
+            counts={dates.map((date) => weekly.data?.filter((issue) => covers(issue, date) && !issue.done).length ?? 0)}
           />
           <section className="card list-card" aria-label={`${shortDay(dates[day])} ${days[day]}요일 이슈`}>
             {weekly.data ? (
@@ -134,6 +134,10 @@ export default function Issues({ resource, user }: { resource: IssuesResource; u
       )}
     </section>
   );
+}
+// 기간(양끝 포함) 안에 date가 들어가는지. YYYY-MM-DD라 문자열 비교로 충분하다
+export function covers(issue: Issue, date: string) {
+  return issue.day <= date && date <= issue.end_day;
 }
 // ‹ 11월 1째주 › + (다른 주를 보고 있으면) "이번 주로" 버튼. 시간표·이슈가 함께 쓴다.
 export function WeekStepper({ label, current, onMove, onToday, unit = "주", todayLabel = "이번 주" }: {
@@ -249,6 +253,7 @@ function IssueItem({
         <h3 className="issue-heading">
           <span className="issue-title-category">{issue.category}</span>{" "}
           <span className="issue-title">{issue.title}</span>
+          {issue.end_day !== issue.day && <span className="issue-period">{shortDay(issue.day)}~{shortDay(issue.end_day)}</span>}
           {issue.created_at && <time className="issue-time" dateTime={issue.created_at}>{createdLabel(issue)}</time>}
         </h3>
         <p className="issue-text">{issue.body}</p>
@@ -296,21 +301,29 @@ export function IssueEditor({
   const notice = useNotice();
   const [category, setCategory] = useState(issue?.category ?? initialCategory);
   const [selectedDay, setSelectedDay] = useState(issue?.day ?? day);
+  const [endDay, setEndDay] = useState(issue?.end_day ?? issue?.day ?? day);
   return (
     <Modal title={issue ? "이슈 수정" : "새 이슈 남기기"} onClose={onClose}>
       <Form
         onClose={onClose}
         submit={issue ? "저장하기" : "등록하기"}
         onSave={async (data) => {
-          const body = Object.fromEntries(["day", "category", "title", "body"].map((key) => [key, value(data, key)]));
+          const body = Object.fromEntries(["day", "end_day", "category", "title", "body"].map((key) => [key, value(data, key)]));
           await (issue ? api(`/issues/${issue.id}`, "PUT", body) : api("/issues", "POST", body));
           onClose();
           await onSaved();
           notice(issue ? "이슈를 수정했어요." : "이슈를 등록했어요.");
         }}
       >
-        <Field label="해당 날짜">
-          <input name="day" type="date" required value={selectedDay} onChange={(event) => setSelectedDay(event.target.value)} />
+        <Field label="시작일">
+          <input name="day" type="date" required value={selectedDay} onChange={(event) => {
+            const start = event.target.value;
+            setSelectedDay(start);
+            if (start && endDay < start) setEndDay(start);
+          }} />
+        </Field>
+        <Field label="종료일">
+          <input name="end_day" type="date" required min={selectedDay} value={endDay} onChange={(event) => setEndDay(event.target.value)} />
         </Field>
         <fieldset className="field choice-chips">
           <legend>구분</legend>

@@ -196,7 +196,7 @@ svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke
 .issue-main{min-width:0;padding:9px 0 4px}
 .issue-heading{margin:0;font-size:16px;font-weight:700;line-height:1.5;overflow-wrap:anywhere}
 .issue-title-category{display:inline-block;margin-right:4px;padding:1px 8px;border-radius:999px;background:var(--brand-bg);color:var(--brand);font-size:12px;font-weight:700;vertical-align:2px}
-.issue-time{margin-left:6px;font-size:12px;font-weight:450;color:var(--muted);white-space:nowrap;font-variant-numeric:tabular-nums}
+.issue-time,.issue-period{margin-left:6px;font-size:12px;font-weight:450;color:var(--muted);white-space:nowrap;font-variant-numeric:tabular-nums}
 .issue-text{margin:4px 0 0;font-size:15px;line-height:1.65;color:#4a5f7d;white-space:pre-wrap;overflow-wrap:anywhere}
 .issue-item.is-done .issue-title{color:var(--muted);text-decoration:line-through;font-weight:500}
 .issue-item.is-done .issue-title-category{opacity:.55}
