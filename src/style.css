@@ -101,6 +101,11 @@ svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke
 /* ---------- 화면 공통 툴바 (제목 대신 컨트롤 한 줄) ---------- */
 .view-toolbar,.board-head{display:flex;align-items:center;gap:10px 16px;flex-wrap:wrap}
 .panel-bar{padding-top:14px}
+/* 월간 업무 관리자 버튼 줄 (웹) */
+.admin-actions{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:0 18px 12px}
+.admin-actions .cleaning-count{padding:0}
+.admin-actions .cleaning-count>span:first-child{margin-right:0}
+.admin-actions .menu-hint{max-width:none;padding:0}
 .title-link{display:inline-flex;align-items:center;gap:2px;font:inherit;color:inherit}
 .title-link svg{width:18px;height:18px;color:var(--muted)}
 @media(hover:hover){.title-link:hover{color:var(--brand)}}
@@ -196,7 +201,7 @@ svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke
 .issue-main{min-width:0;padding:9px 0 4px}
 .issue-heading{margin:0;font-size:16px;font-weight:700;line-height:1.5;overflow-wrap:anywhere}
 .issue-title-category{display:inline-block;margin-right:4px;padding:1px 8px;border-radius:999px;background:var(--brand-bg);color:var(--brand);font-size:12px;font-weight:700;vertical-align:2px}
-.issue-time{margin-left:6px;font-size:12px;font-weight:450;color:var(--muted);white-space:nowrap;font-variant-numeric:tabular-nums}
+.issue-time,.issue-period{margin-left:6px;font-size:12px;font-weight:450;color:var(--muted);white-space:nowrap;font-variant-numeric:tabular-nums}
 .issue-text{margin:4px 0 0;font-size:15px;line-height:1.65;color:#4a5f7d;white-space:pre-wrap;overflow-wrap:anywhere}
 .issue-item.is-done .issue-title{color:var(--muted);text-decoration:line-through;font-weight:500}
 .issue-item.is-done .issue-title-category{opacity:.55}

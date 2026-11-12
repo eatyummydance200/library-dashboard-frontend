@@ -4,7 +4,6 @@ import type { Duty, Issue, Staff, Status, Teacher, User } from "./types";
 import { koreaParts, today } from "./dates";
 import { IssueEditor, TodayIssues } from "./Issues";
 import {
-  AdminMenu,
   Field,
   Form,
   Icon,
@@ -218,6 +217,9 @@ export default function Dashboard({
         <section className="card duty-card" aria-labelledby="duty-title">
           <div className="card-head">
             <h2 id="duty-title">오늘의 당직</h2>
+            {user.role === "admin" && (
+              <button className="btn small" onClick={() => setEditing(true)}>수정</button>
+            )}
           </div>
           {duty.data ? (
             <>
@@ -272,11 +274,6 @@ export default function Dashboard({
         </div>
         <TodayIssues resource={dailyIssues} user={user} onChanged={issues.refresh} />
       </section>
-      {user.role === "admin" && (
-        <AdminMenu>
-          <button type="button" onClick={() => setEditing(true)}>당직 정보 수정</button>
-        </AdminMenu>
-      )}
       {dialogs}
     </section>
   );

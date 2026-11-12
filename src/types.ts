@@ -69,6 +69,7 @@ export interface Status {
 export interface Issue {
   id: number;
   day: string;
+  end_day: string;
   category: string;
   title: string;
   body: string;
