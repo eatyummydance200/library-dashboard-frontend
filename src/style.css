@@ -101,6 +101,11 @@ svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke
 /* ---------- 화면 공통 툴바 (제목 대신 컨트롤 한 줄) ---------- */
 .view-toolbar,.board-head{display:flex;align-items:center;gap:10px 16px;flex-wrap:wrap}
 .panel-bar{padding-top:14px}
+/* 월간 업무 관리자 버튼 줄 (웹) */
+.admin-actions{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:0 18px 12px}
+.admin-actions .cleaning-count{padding:0}
+.admin-actions .cleaning-count>span:first-child{margin-right:0}
+.admin-actions .menu-hint{max-width:none;padding:0}
 .title-link{display:inline-flex;align-items:center;gap:2px;font:inherit;color:inherit}
 .title-link svg{width:18px;height:18px;color:var(--muted)}
 @media(hover:hover){.title-link:hover{color:var(--brand)}}

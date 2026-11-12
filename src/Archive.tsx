@@ -4,7 +4,6 @@ import type { ArchiveData, Assignment, User } from "./types";
 import { addMonths, dateTime, today } from "./dates";
 import {
   Action,
-  AdminMenu,
   Fold,
   Form,
   Loading,
@@ -154,9 +153,10 @@ export default function Archive({ user }: { user: User }) {
           <>
             <ResourceError error={resource.error} retry={resource.refresh} />
             {admin && !mobile && (
-              <AdminMenu>
+              <div className="admin-actions">
                 {!data.draw && (
                   <Action
+                    className="btn small"
                     disabled={data.participants.length !== 7}
                     run={draw}
                   >
@@ -165,6 +165,7 @@ export default function Archive({ user }: { user: User }) {
                 )}
                 <button
                   type="button"
+                  className="btn small"
                   disabled={
                     !!pending.length ||
                     (!data.draw && data.participants.length < 7)
@@ -176,7 +177,7 @@ export default function Archive({ user }: { user: User }) {
                 {!data.draw && data.participants.length !== 7 && (
                   <p className="menu-hint">추첨은 재직 근무자가 7명일 때 할 수 있어요. 수동 입력은 7명을 골라 주세요.</p>
                 )}
-              </AdminMenu>
+              </div>
             )}
             {!admin && !user.staff_id && (
               <p className="archive-notice">

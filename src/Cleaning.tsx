@@ -3,7 +3,7 @@ import type { CSSProperties } from "react";
 import { api, useResource } from "./api";
 import type { CleaningRecord, Staff, User } from "./types";
 import { addMonths, dateTime, today } from "./dates";
-import { Action, AdminMenu, Fold, Form, Loading, Modal, ResourceError, Stepper, useMobile, useNotice } from "./ui";
+import { Action, Fold, Form, Loading, Modal, ResourceError, Stepper, useMobile, useNotice } from "./ui";
 
 type Records = ReturnType<typeof useResource<CleaningRecord[]>>;
 interface Roll {
@@ -130,7 +130,7 @@ export default function Cleaning({
       </button>
     </div>
   );
-  // 관리자 조작. 웹은 상단 "관리" 메뉴(버튼 기본 모양), 모바일은 접힘 줄 안의 버튼
+  // 관리자 조작. 웹은 카드 안 버튼 줄, 모바일은 접힘 줄 안의 버튼
   const adminControls = (
     <>
       <div className="cleaning-count" role="group" aria-label="추첨 인원" data-stay>
@@ -168,7 +168,7 @@ export default function Cleaning({
       {record ? (
         <button
           type="button"
-          className={mobile ? "btn primary" : undefined}
+          className={mobile ? "btn primary" : "btn small"}
           disabled={rolling || !active.length}
           onClick={() => setDialog("redraw")}
         >
@@ -176,7 +176,7 @@ export default function Cleaning({
         </button>
       ) : (
         <Action
-          className={mobile ? "btn primary" : ""}
+          className={mobile ? "btn primary" : "btn small"}
           disabled={rolling || !active.length}
           run={() => draw(false)}
         >
@@ -185,7 +185,7 @@ export default function Cleaning({
       )}
       <button
         type="button"
-        className={mobile ? "btn" : undefined}
+        className={mobile ? "btn" : "btn small"}
         disabled={rolling || !staff.data}
         onClick={() => setDialog("assign")}
       >
@@ -252,13 +252,8 @@ export default function Cleaning({
             ) : (
               <span className="unassigned">미추첨</span>
             )}
-            {record && !rolling && (
-              <p className="hint">
-                {record.username}님이 {dateTime(record.created_at)}에 정했어요
-              </p>
-            )}
           </div>
-          {admin && !mobile && <AdminMenu>{adminControls}</AdminMenu>}
+          {admin && !mobile && <div className="admin-actions">{adminControls}</div>}
           {!mobile && (
             <details className="table-inset history">
               <summary className="table-title">지난 기록</summary>
