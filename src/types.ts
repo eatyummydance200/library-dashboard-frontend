@@ -15,7 +15,7 @@ export interface Teacher {
 export interface User {
   id: number;
   username: string;
-  role: "admin" | "worker";
+  role: "admin" | "worker" | "viewer";
   staff_id: number | null;
 }
 export interface Account extends User {
