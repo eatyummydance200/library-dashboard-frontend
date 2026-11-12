@@ -202,6 +202,8 @@ function Workspace({ user, onLogout }: { user: User; onLogout: () => void }) {
       document.removeEventListener("visibilitychange", refresh);
     };
   }, [issues.refresh]);
+  // 보기 전용 계정은 인적관리 탭이 없다
+  const tabs = user.role === "viewer" ? navigation.filter(([key]) => key !== "people") : navigation;
   const item = navigation.find((item) => item[0] === view)!;
   const open = issues.data?.filter((issue) => !issue.done).length;
   const mobile = useMobile();
@@ -232,7 +234,7 @@ function Workspace({ user, onLogout }: { user: User; onLogout: () => void }) {
         <header className="topbar">
           <img className="topbar-logo" src={logo} width={539} height={301} alt="인천대학교" />
           <nav className="tabs" aria-label="화면 이동">
-            {navigation.map(([key, label]) => (
+            {tabs.map(([key, label]) => (
               <button
                 key={key}
                 className={view === key ? "active" : ""}
@@ -261,7 +263,7 @@ function Workspace({ user, onLogout }: { user: User; onLogout: () => void }) {
         {view === "schedule" && (
           <Schedule user={user} />
         )}
-        {view === "people" && <People user={user} />}
+        {view === "people" && user.role !== "viewer" && <People user={user} />}
         {view === "issues" && <Issues resource={issues} user={user} />}
         {view === "monthly" && <Monthly user={user} />}
         {view === "manual" && <Manual user={user} />}
@@ -269,7 +271,7 @@ function Workspace({ user, onLogout }: { user: User; onLogout: () => void }) {
       </main>
       {mobile && (
         <nav className="tabbar" aria-label="화면 이동">
-          {navigation.map(([key, label, icon]) => (
+          {tabs.map(([key, label, icon]) => (
             <button
               key={key}
               className={view === key ? "active" : ""}
@@ -291,13 +293,15 @@ function Workspace({ user, onLogout }: { user: User; onLogout: () => void }) {
             <span className="avatar">{user.username.slice(0, 1)}</span>
             <div>
               <strong>{user.username}</strong>
-              <span>{user.role === "admin" ? "관리자" : "근무자"} 계정</span>
+              <span>{user.role === "admin" ? "관리자" : user.role === "viewer" ? "보기 전용" : "근무자"} 계정</span>
             </div>
           </div>
           <div className="form-actions">
-            <button className="btn" onClick={() => setDialog("password")}>
-              비밀번호 변경
-            </button>
+            {user.role !== "viewer" && (
+              <button className="btn" onClick={() => setDialog("password")}>
+                비밀번호 변경
+              </button>
+            )}
             <Action
               className="btn primary"
               run={async () => {
@@ -310,10 +314,12 @@ function Workspace({ user, onLogout }: { user: User; onLogout: () => void }) {
           </div>
         </Modal>
       )}
-      <button className="inquiry-fab" aria-label="개발자에게 문의" onClick={() => setDialog("inquiry")}>
-        <Icon name="message" />
-        문의
-      </button>
+      {user.role !== "viewer" && (
+        <button className="inquiry-fab" aria-label="개발자에게 문의" onClick={() => setDialog("inquiry")}>
+          <Icon name="message" />
+          문의
+        </button>
+      )}
       {dialog === "inquiry" && <InquiryDialog onClose={() => setDialog(null)} />}
       {dialog === "password" && (
         <Modal title="비밀번호 변경" onClose={() => setDialog(null)}>

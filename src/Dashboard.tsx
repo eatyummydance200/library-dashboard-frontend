@@ -172,10 +172,12 @@ export default function Dashboard({
         </div>
         <TodayIssues resource={dailyIssues} user={user} onChanged={issues.refresh} />
       </section>
-      <button className="btn primary fab" onClick={() => setAddingIssue(true)}>
-        <Icon name="plus" />
-        새 이슈
-      </button>
+      {user.role !== "viewer" && (
+        <button className="btn primary fab" onClick={() => setAddingIssue(true)}>
+          <Icon name="plus" />
+          새 이슈
+        </button>
+      )}
       {dialogs}
     </section>
   );
@@ -267,10 +269,12 @@ export default function Dashboard({
               오늘의 이슈 <Icon name="chevron" />
             </button>
           </h2>
-          <button className="btn small" onClick={() => setAddingIssue(true)}>
-            <Icon name="plus" />
-            새 이슈
-          </button>
+          {user.role !== "viewer" && (
+            <button className="btn small" onClick={() => setAddingIssue(true)}>
+              <Icon name="plus" />
+              새 이슈
+            </button>
+          )}
         </div>
         <TodayIssues resource={dailyIssues} user={user} onChanged={issues.refresh} />
       </section>

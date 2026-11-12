@@ -84,10 +84,12 @@ export default function Issues({ resource, user }: { resource: IssuesResource; u
             ) : <Loading error={weekly.error} retry={weekly.refresh} />}
           </section>
           <Fold title={`보기 옵션 · ${filters.find(([key]) => key === filter)![1]}`}>{segment}</Fold>
-          <button type="button" className="btn primary fab" onClick={() => setAdding(dates[day])}>
-            <Icon name="plus" />
-            새 이슈
-          </button>
+          {user.role !== "viewer" && (
+            <button type="button" className="btn primary fab" onClick={() => setAdding(dates[day])}>
+              <Icon name="plus" />
+              새 이슈
+            </button>
+          )}
         </>
       ) : (
         <>
@@ -112,7 +114,7 @@ export default function Issues({ resource, user }: { resource: IssuesResource; u
                       <header className="issue-day-heading">
                         <h3>{label}요일</h3>
                         <time dateTime={date}>{shortDay(date)}{date === today() && " · 오늘"}</time>
-                        <button type="button" className="issue-day-add" aria-label={`${shortDay(date)} ${label}요일 이슈 추가`} onClick={() => setAdding(date)}>＋</button>
+                        {user.role !== "viewer" && <button type="button" className="issue-day-add" aria-label={`${shortDay(date)} ${label}요일 이슈 추가`} onClick={() => setAdding(date)}>＋</button>}
                       </header>
                       {list(date, "이 날은 남겨진 이슈가 없어요.")}
                     </section>
@@ -225,8 +227,9 @@ function IssueItem({
   const notice = useNotice();
   const [busy, setBusy] = useState(false);
   const [editing, setEditing] = useState(false);
-  const editable = !issue.done && (user.role === "admin" || user.id === issue.author_id);
-  const deletable = user.role === "admin" || (!issue.done && user.id === issue.author_id);
+  const viewer = user.role === "viewer";
+  const editable = !viewer && !issue.done && (user.role === "admin" || user.id === issue.author_id);
+  const deletable = !viewer && (user.role === "admin" || (!issue.done && user.id === issue.author_id));
   return (
     <article className={`issue-item${issue.done ? " is-done" : ""}`}>
       <label className="issue-check-hit">
@@ -234,7 +237,7 @@ function IssueItem({
         type="checkbox"
         className="issue-check"
         checked={!!issue.done}
-        disabled={busy}
+        disabled={busy || viewer}
         aria-label={issue.done ? `${issue.title} 다시 열기` : `${issue.title} 완료`}
         onChange={async () => {
           setBusy(true);
