@@ -2,8 +2,11 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 export const base = "/library-dashboard";
 let csrf = "";
+// GET 응답 캐시. 화면은 캐시로 바로 그리고 useResource가 뒤에서 다시 받아온다.
+const cache = new Map<string, unknown>();
 export function setCsrf(value: string) {
   csrf = value;
+  cache.clear(); // 세션이 바뀌면 이전 계정 데이터를 보여주지 않는다
 }
 export class ApiError extends Error {
   constructor(
@@ -92,7 +95,10 @@ export function useResource<T>(path: string) {
     controller.current = request;
     try {
       const data = await api<T>(path, "GET", undefined, request.signal);
-      if (!request.signal.aborted) setState({ path, data });
+      if (!request.signal.aborted) {
+        cache.set(path, data);
+        setState({ path, data });
+      }
     } catch (error) {
       if (!request.signal.aborted)
         setState((old) => ({
@@ -109,16 +115,18 @@ export function useResource<T>(path: string) {
   const update = useCallback(
     (change: (data: T) => T) => {
       controller.current?.abort();
-      setState((old) =>
-        old.path === path && old.data !== undefined
-          ? { path, data: change(old.data) }
-          : old,
-      );
+      setState((old) => {
+        const current = (old.path === path ? old.data : undefined) ?? (cache.get(path) as T | undefined);
+        if (current === undefined) return old;
+        const data = change(current);
+        cache.set(path, data);
+        return { path, data };
+      });
     },
     [path],
   );
   return {
-    data: state.path === path ? state.data : undefined,
+    data: (state.path === path ? state.data : undefined) ?? (cache.get(path) as T | undefined),
     error: state.path === path ? state.error : undefined,
     refresh,
     update,
