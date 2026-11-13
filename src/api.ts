@@ -45,7 +45,7 @@ export function api<T>(
       headers,
       body: body === undefined || form ? (body as FormData | undefined) : JSON.stringify(body),
       credentials: "same-origin",
-      cache: "no-store",
+      cache: "no-cache", // 브라우저 캐시를 ETag로 재검증해 안 바뀐 응답은 304로 받는다
       signal,
     }).catch((error) => {
       if (signal?.aborted && signal.reason?.name !== "TimeoutError") throw error;
