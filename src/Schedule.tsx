@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { CSSProperties, PointerEvent as ReactPointerEvent } from "react";
 import { api, useResource } from "./api";
 import type { ConfirmedShift, ConfirmedTable, OriginalWeek, Shift, User, Week, WeeklyHours } from "./types";
@@ -12,12 +12,14 @@ import {
   time,
   weekLabel,
 } from "./dates";
-import { DayStrip, todayIndex } from "./DayStrip";
-import { Badge, Card, ListHeader, ListRow, PageTop, Segmented } from "./tds";
+import { todayIndex } from "./DayStrip";
+import { WeekStepper } from "./Issues";
+import { Badge, Card, ListHeader, ListRow, PageTop, Segmented, Tabs } from "./tds";
 import "./schedule.css";
 import {
   Action,
   Icon,
+  Menu,
   AdminMenu,
   Field,
   Form,
@@ -46,6 +48,7 @@ type Editing = {
   onAdd?: (draft: Draft) => void;
   onEdit?: (shift: Shift) => void;
   onResize?: (event: ReactPointerEvent<HTMLSpanElement>, shift: Shift, edge: "start" | "end") => void;
+  onMove?: (event: ReactPointerEvent<HTMLButtonElement>, shift: Shift) => void;
 };
 function overlaps(shifts: Shift[], entry: Omit<Shift, "id" | "role">, exclude?: number) {
   return shifts.some((other) => other.id !== exclude && other.staff_id === entry.staff_id &&
@@ -87,11 +90,11 @@ export default function Schedule({ user }: { user: User }) {
   const table = useResource<ConfirmedTable>("/schedule/original");
   const original = { ...table, data: table.data && onWeek(table.data, week) };
   const hours = useResource<{ overrides: WeeklyHours[] }>("/schedule/hours");
-  const [editingHours, setEditingHours] = useState<number | null>(null);
   const [clock, setClock] = useState(koreaParts());
-  const [person, setPerson] = useState("");
+  const [picked, setPicked] = useState<number[]>([]); // 강조할 근무자(비어 있으면 모두)
   const [editor, setEditor] = useState<{ shift?: Shift; draft?: Draft } | null>(null);
-  const [adjust, setAdjust] = useState<{ id: number; start: number; end: number } | null>(null);
+  const [adjust, setAdjust] = useState<{ id: number; day: string; start: number; end: number } | null>(null);
+  const dragged = useRef(false); // 블록을 끌어 옮긴 직후의 클릭(수정 창·근무 추가)을 막는다
   const [copying, setCopying] = useState(false);
   const [confirmedEditor, setConfirmedEditor] = useState<{ shift?: Shift; draft?: Draft } | null>(null);
   const [view, setView] = useState<"week" | "confirmed">("week");
@@ -119,12 +122,12 @@ export default function Schedule({ user }: { user: User }) {
   const savedOriginal = async () => { await Promise.all([table.refresh(), hours.refresh()]); };
   const canSaveFirst = !!data.data?.shifts.length && !data.error && !original.error;
   async function saveFirst() {
-    if (!data.data || !confirm("현재 주간 근무표를 최초 확정표로 저장할까요?")) return;
+    if (!data.data || !confirm("지금 보는 주간표를 확정표로 저장할까요?")) return;
     await api("/schedule/original", "PUT", { shifts: data.data.shifts.map(toConfirmed) });
     await savedOriginal();
     notice("확정된 근무 시간표를 저장했어요.");
   }
-  const visibleShifts = data.data?.shifts.map((shift) => shift.id === adjust?.id ? { ...shift, start: adjust.start, end: adjust.end } : shift) ?? [];
+  const visibleShifts = data.data?.shifts.map((shift) => shift.id === adjust?.id ? { ...shift, day: adjust.day, start: adjust.start, end: adjust.end } : shift) ?? [];
   // Drag a handle to resize a shift. Bounds are checked here so an invalid length can't be produced;
   // the server still validates on save. The new length shows immediately and reverts if saving fails.
   function startResize(event: ReactPointerEvent<HTMLSpanElement>, shift: Shift, edge: "start" | "end") {
@@ -135,7 +138,7 @@ export default function Schedule({ user }: { user: User }) {
     const others = data.data!.shifts.filter((other) => other.id !== shift.id && other.staff_id === shift.staff_id && other.day === shift.day);
     const min = edge === "start" ? Math.max(540, ...others.filter((other) => other.end <= shift.start).map((other) => other.end)) : shift.start + 30;
     const max = edge === "start" ? shift.end - 30 : Math.min(1320, ...others.filter((other) => other.start >= shift.end).map((other) => other.start));
-    let next = { id: shift.id, start: shift.start, end: shift.end };
+    let next = { id: shift.id, day: shift.day, start: shift.start, end: shift.end };
     handle.setPointerCapture(event.pointerId);
     const move = (moved: PointerEvent) => {
       const minute = 540 + Math.round(((moved.clientY - grid.top) / grid.height) * 26) * 30;
@@ -174,6 +177,51 @@ export default function Schedule({ user }: { user: User }) {
   const changedOn = (index: number) => comparing
     ? changes(visibleShifts.filter((shift) => shift.day === dates[index]), table.data!.shifts.filter((entry) => entry.weekday === index + 1))
     : NONE;
+  // 블록 몸통을 끌어 다른 시각·요일로 옮긴다(30분 단위, 길이는 그대로). 마우스·펜만: 터치는 스크롤과 겹쳐서 뺐다.
+  // 블록이 다른 요일 칸으로 넘어가면 DOM 요소가 새로 만들어지므로 이동 이벤트는 window에서 받는다.
+  function startMove(event: ReactPointerEvent<HTMLButtonElement>, shift: Shift) {
+    if (event.button !== 0 || event.pointerType === "touch" || (event.target as HTMLElement).closest(".sch-handle")) return;
+    const tracks = [...document.querySelectorAll(".sch-board .sch-track")].map((track) => track.getBoundingClientRect());
+    const slot = tracks[0].height / 26;
+    const from = { x: event.clientX, y: event.clientY };
+    const length = shift.end - shift.start;
+    let next = { id: shift.id, day: shift.day, start: shift.start, end: shift.end };
+    let moving = false;
+    const move = (moved: PointerEvent) => {
+      if (!moving && Math.hypot(moved.clientX - from.x, moved.clientY - from.y) < 6) return;
+      moving = dragged.current = true;
+      const start = Math.min(1320 - length, Math.max(540, shift.start + Math.round((moved.clientY - from.y) / slot) * 30));
+      const index = tracks.findIndex((rect) => moved.clientX >= rect.left && moved.clientX <= rect.right);
+      next = { id: shift.id, day: index < 0 ? next.day : dates[index], start, end: start + length };
+      setAdjust(next);
+    };
+    const finish = async (save: boolean) => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      window.removeEventListener("pointercancel", cancel);
+      setTimeout(() => { dragged.current = false; });
+      if (!moving) return;
+      if (!save || (next.day === shift.day && next.start === shift.start)) return setAdjust(null);
+      if (overlaps(data.data!.shifts, { staff_id: shift.staff_id, day: next.day, start: next.start, end: next.end }, shift.id)) {
+        notice("같은 사람의 근무와 겹쳐서 옮길 수 없어요.");
+        return setAdjust(null);
+      }
+      try {
+        await api(`/shifts/${shift.id}`, "PUT", { staff_id: shift.staff_id, day: next.day, start: next.start, end: next.end, role: shift.role });
+        await data.refresh();
+        notice(`근무를 ${days[dates.indexOf(next.day)]}요일 ${time(next.start)}–${time(next.end)}로 옮겼어요.`);
+      } catch (error) {
+        notice(error instanceof Error ? error.message : "근무를 저장하지 못했어요.");
+      } finally {
+        setAdjust(null);
+      }
+    };
+    const up = () => void finish(true);
+    const cancel = () => void finish(false);
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+    window.addEventListener("pointercancel", cancel);
+  }
   // 화면의 블록은 드래그 중 길이가 바뀐 사본일 수 있어 원본을 찾아 넘긴다.
   const find = (shift: Shift) => data.data!.shifts.find((entry) => entry.id === shift.id)!;
   const confirmedView = view === "confirmed";
@@ -182,18 +230,37 @@ export default function Schedule({ user }: { user: User }) {
     onAdd: (draft) => setConfirmedEditor({ draft }),
     onEdit: (shift) => setConfirmedEditor({ shift }),
   }) : {
-    onAdd: (draft) => setEditor({ draft }),
-    onEdit: (shift) => setEditor({ shift: find(shift) }),
+    onAdd: (draft) => { if (!dragged.current) setEditor({ draft }); },
+    onEdit: (shift) => { if (!dragged.current) setEditor({ shift: find(shift) }); },
     onResize: (event, shift, edge) => startResize(event, find(shift), edge),
+    onMove: (event, shift) => startMove(event, find(shift)),
   };
   // 지금 보는 표: 주간표 또는 이 주 날짜에 얹은 확정표
   const source = confirmedView ? original : data;
   const shifts = confirmedView ? original.data?.shifts ?? [] : visibleShifts;
   const staff = source.data?.staff ?? [];
-  const nameOf = (id: number) => staff.find((entry) => entry.id === id)?.name ?? "근무자";
+  // 추가·수정·이동으로 달라진 블록을 잠깐 강조한다. 같은 표(보기·주)의 직전 모습과 비교하므로 주를 넘길 때는 반응하지 않는다.
+  const saved = confirmedView ? original.data?.shifts : data.data?.shifts;
+  const savedKey = confirmedView ? `confirmed/${week}` : `week/${data.data?.week}`;
+  const seen = useRef({ key: "", map: new Map<number, string>() });
+  const [flash, setFlash] = useState<number[]>([]);
+  useEffect(() => {
+    if (!saved) return;
+    const map = new Map(saved.map((shift) => [shift.id, `${shift.day}/${shift.start}/${shift.end}/${shift.role}/${shift.staff_id}`]));
+    const before = seen.current;
+    seen.current = { key: savedKey, map };
+    if (before.key !== savedKey) return;
+    const ids = [...map].filter(([id, value]) => before.map.get(id) !== value).map(([id]) => id);
+    if (!ids.length) return;
+    setFlash(ids);
+    const timer = setTimeout(() => setFlash([]), 700);
+    return () => clearTimeout(timer);
+  }, [table.data, data.data, savedKey]);
+  const pickedNames = staff.filter((entry) => picked.includes(entry.id)).map((entry) => entry.name);
+  const pickedLabel = !pickedNames.length ? "모든 근무자" : pickedNames.length === 1 ? pickedNames[0] : `${pickedNames[0]} 외 ${pickedNames.length - 1}명`;
   const unsaved = confirmedView && original.data && !original.data.saved && (
     <p className="sch-empty-note">
-      {admin ? "관리 메뉴에서 확정 근무를 추가하거나 현재 주간표를 최초 확정표로 저장해 주세요." : "아직 확정표가 없어요."}
+      {admin ? "관리 메뉴에서 확정표에 근무를 추가하거나 이 주간표를 확정표로 저장해 주세요." : "아직 확정표가 없어요."}
     </p>
   );
   const range = `${shortDay(week)} ~ ${shortDay(addDays(week, 4))}`;
@@ -207,16 +274,14 @@ export default function Schedule({ user }: { user: User }) {
       />
       {admin && (
         <AdminMenu>
-          <button type="button" disabled={!data.data} onClick={() => setEditor({})}>근무 추가</button>
-          <button type="button" disabled={!data.data} onClick={() => setCopying(true)}>확정표 가져오기</button>
+          <button type="button" disabled={!data.data} onClick={() => setEditor({})}>주간표에 근무 추가</button>
+          <button type="button" disabled={!data.data} onClick={() => setCopying(true)}>확정표대로 채우기</button>
           <hr />
-          <button type="button" disabled={!original.data || !!original.error} onClick={() => setConfirmedEditor({})}>확정 근무 추가</button>
+          <button type="button" disabled={!original.data || !!original.error} onClick={() => setConfirmedEditor({})}>확정표에 근무 추가</button>
           {original.data && !original.data.saved && (
-            <Action disabled={!canSaveFirst} run={saveFirst}>현재 주간표로 최초 확정</Action>
+            <Action disabled={!canSaveFirst} run={saveFirst}>이 주간표를 확정표로 저장</Action>
           )}
-          <p className="menu-hint">
-            {mobile ? "근무를 누르면 고칠 수 있어요." : "빈 칸을 누르면 근무 추가, 근무를 누르면 수정, 위·아래 끝을 끌면 길이를 바꿔요."}
-          </p>
+          {mobile && <p className="menu-hint">빈 칸을 누르면 근무 추가, 근무를 누르면 수정이에요.{confirmedView ? "" : " 위·아래 끝을 끌면 길이를 바꿔요."}</p>}
         </AdminMenu>
       )}
     </>
@@ -226,42 +291,49 @@ export default function Schedule({ user }: { user: User }) {
   const dayChanged = confirmedView ? NONE : changedOn(day);
   const mobileBody = (
     <>
-      <DayStrip week={week} day={day} onWeek={confirmedView ? undefined : setWeek} onDay={setDay} label={confirmedView ? "확정표 요일 선택" : "시간표 요일 선택"} />
-      <Card className="sch-card" labelledBy="sch-day-title">
-        <ListHeader
-          id="sch-day-title"
-          title={`${confirmedView ? `${days[day]}요일 확정 근무` : `${Number(date.slice(8))}일 ${days[day]}요일 근무`} ${source.data ? dayShifts.length : ""}`}
-        />
+      <Tabs
+        fluid
+        label={confirmedView ? "확정표 요일 선택" : "시간표 요일 선택"}
+        value={String(day)}
+        onChange={(key) => setDay(Number(key))}
+        items={dates.map((entry, index) => ({
+          key: String(index),
+          label: confirmedView ? days[index] : `${days[index]} ${Number(entry.slice(8))}`,
+          aria: confirmedView ? `${days[index]}요일` : `${shortDay(entry)} ${days[index]}요일${entry === todayKey ? " · 오늘" : ""}`,
+        }))}
+      />
+      <div className="sch-day-panel" role="tabpanel" aria-label={confirmedView ? `${days[day]}요일 확정 근무` : `${shortDay(date)} ${days[day]}요일 근무`}>
+        <div className="sch-legend">
+          <Badge color="blue">데스크</Badge>
+          <Badge color="yellow">대기</Badge>
+          {!confirmedView && <Badge color="red">확정표와 다름</Badge>}
+        </div>
         {source.data ? (
           <>
             <ResourceError error={source.error} retry={source.refresh} />
-            {unsaved || (dayShifts.length ? dayShifts.map((shift) => {
-              const current = !confirmedView && now != null && date === todayKey && shift.start <= minute && minute < shift.end;
-              const name = nameOf(shift.staff_id);
-              const span = `${time(shift.start)}–${time(shift.end)}`;
-              const differs = dayChanged.has(shift.id);
-              return (
-                <ListRow
-                  key={shift.id}
-                  icon="clock"
-                  title={name}
-                  sub={`${span}${current ? " · 지금" : ""}`}
-                  right={
-                    <>
-                      {differs && <Badge color="red">확정표와 다름</Badge>}
-                      <Badge color={shift.role === "desk" ? "blue" : "yellow"} fill={current}>{roleName(shift)}</Badge>
-                    </>
-                  }
-                  onClick={editing.onEdit && (() => editing.onEdit!(shift))}
-                  ariaLabel={editing.onEdit && `${name} · ${span} · ${roleName(shift)}${differs ? " · 확정표와 다름" : ""} · ${editing.editLabel ?? "근무 수정"}`}
+            {unsaved || (
+              <div className="sch-board is-single" style={{ "--slots": 26 } as CSSProperties} aria-label={confirmedView ? "30분 단위 확정 근무 시간표" : "30분 단위 하루 근무 시간표"}>
+                <TimeAxis />
+                <DayTrack
+                  key={date}
+                  date={date}
+                  shifts={dayShifts}
+                  staff={staff}
+                  changed={dayChanged}
+                  flash={flash}
+                  dragging={adjust?.id}
+                  template={confirmedView}
+                  today={!confirmedView && date === todayKey}
+                  now={!confirmedView && date === todayKey ? now : undefined}
+                  {...editing}
                 />
-              );
-            }) : <p className="sch-empty-note">이 날은 근무가 없어요</p>)}
+              </div>
+            )}
           </>
         ) : (
           <Loading error={source.error} retry={source.refresh} />
         )}
-      </Card>
+      </div>
     </>
   );
   const desktopBody = (
@@ -283,12 +355,24 @@ export default function Schedule({ user }: { user: User }) {
           <Badge color="yellow">대기</Badge>
           {!confirmedView && <Badge color="red">확정표와 다름</Badge>}
         </div>
-        <select className="sch-person" aria-label="시간표 근무자 선택" value={person} onChange={(event) => setPerson(event.target.value)}>
-          <option value="">모든 근무자</option>
+        <Menu
+          className="admin-menu sch-person"
+          label="강조할 근무자 선택 (여러 명)"
+          summary={<>{pickedLabel}<Icon name="chevron" /></>}
+        >
           {staff.map((entry) => (
-            <option key={entry.id} value={entry.id}>{entry.name}만 강조</option>
+            <label key={entry.id} className="check-row">
+              <span>{entry.name}</span>
+              <input
+                type="checkbox"
+                className="tds-check"
+                checked={picked.includes(entry.id)}
+                onChange={() => setPicked(picked.includes(entry.id) ? picked.filter((id) => id !== entry.id) : [...picked, entry.id])}
+              />
+            </label>
           ))}
-        </select>
+          {!!picked.length && <><hr /><button type="button" onClick={() => setPicked([])}>모두 보기</button></>}
+        </Menu>
       </div>
       {source.data ? (
         <>
@@ -304,7 +388,9 @@ export default function Schedule({ user }: { user: User }) {
                     shifts={shifts.filter((shift) => shift.day === entry)}
                     staff={staff}
                     changed={confirmedView ? NONE : changedOn(index)}
-                    dim={person}
+                    dim={picked}
+                    flash={flash}
+                    dragging={adjust?.id}
                     template={confirmedView}
                     today={!confirmedView && entry === todayKey}
                     now={!confirmedView && entry === todayKey ? now : undefined}
@@ -323,9 +409,19 @@ export default function Schedule({ user }: { user: User }) {
   return (
     <section className="view schedule-workspace" aria-label={mobile ? "시간표" : "주간 시간표"}>
       <PageTop
-        upper={mobile && !confirmedView ? `${weekLabel(week)} · ${range}` : undefined}
+        upper={mobile && (confirmedView ? "매주 기본이 되는 표예요" : (
+          <WeekStepper
+            label={`${weekLabel(week)} · ${range}`}
+            current={week === monday()}
+            onMove={(offset) => setWeek(addDays(week, offset * 7))}
+            onToday={() => {
+              setWeek(monday());
+              setDay(todayIndex());
+            }}
+          />
+        ))}
         title="시간표"
-        lower={!mobile && (confirmedView ? "매주 기본이 되는 표예요" : admin ? "근무 칸을 누르면 고칠 수 있어요" : undefined)}
+        lower={!mobile && (confirmedView ? (admin ? "매주 기본이 되는 표예요. 빈 칸을 눌러 추가하고 근무를 눌러 고칠 수 있지만, 이번 주 표처럼 끌어서 옮기거나 길이를 바꿀 수는 없어요." : "매주 기본이 되는 표예요") : admin ? "빈 칸을 누르면 근무 추가, 근무를 누르면 수정, 위·아래 끝을 끌면 길이, 블록을 끌면 자리를 바꿔요." : undefined)}
         actions={actions}
       />
       {mobile ? mobileBody : desktopBody}
@@ -335,22 +431,12 @@ export default function Schedule({ user }: { user: User }) {
           hours.data ? <>
             <ResourceError error={original.error} retry={original.refresh} />
             <ResourceError error={hours.error} retry={hours.refresh} />
-            <Stats week={original.data} overrides={hours.data.overrides} onEdit={admin ? setEditingHours : undefined} />
+            <Stats week={original.data} overrides={hours.data.overrides} />
           </> : <Loading error={hours.error} retry={hours.refresh} />
         ) : original.data ? <p className="sch-empty-note">확정된 근무 시간표를 먼저 저장해 주세요.</p> : <Loading error={original.error} retry={original.refresh} />}
       </Card>
       {confirmedEditor && original.data && (
         <ShiftEditor key={`${week}/${confirmedEditor.shift?.id ?? "new"}`} week={original.data} shift={confirmedEditor.shift} draft={confirmedEditor.draft} confirmed onClose={() => setConfirmedEditor(null)} onSaved={savedOriginal} />
-      )}
-      {editingHours != null && original.data?.saved && hours.data && (
-        <WeeklyHoursEditor
-          key={`${week}/${editingHours}`}
-          week={original.data}
-          person={editingHours}
-          override={hours.data.overrides.find((entry) => entry.staff_id === editingHours)}
-          onClose={() => setEditingHours(null)}
-          onSaved={hours.refresh}
-        />
       )}
       {editor && data.data && (
         <ShiftEditor
@@ -405,12 +491,14 @@ function TimeAxis() {
 }
 // 하루 한 열의 근무 블록 (데스크톱 주간표·확정표). template이면 날짜 없이 요일만 쓴다.
 // onAdd/onEdit/onResize가 있으면 빈 칸 클릭 추가, 블록 클릭 편집, 위·아래 끝 드래그 조정을 켠다.
-function DayTrack({ date, shifts, staff, changed, dim = "", template = false, today = false, now, editLabel = "근무 수정", onAdd, onEdit, onResize }: Editing & {
+function DayTrack({ date, shifts, staff, changed, dim = [], flash = [], dragging, template = false, today = false, now, editLabel = "근무 수정", onAdd, onEdit, onResize, onMove }: Editing & {
   date: string;
   shifts: Shift[];
   staff: Week["staff"];
   changed: Set<number>;
-  dim?: string;
+  dim?: number[];
+  flash?: number[];
+  dragging?: number;
   template?: boolean;
   today?: boolean;
   now?: { minute: number; clock: string };
@@ -443,11 +531,12 @@ function DayTrack({ date, shifts, staff, changed, dim = "", template = false, to
               key={shift.id}
               type="button"
               data-shift-id={shift.id}
-              className={`sch-block ${shift.role === "desk" ? "is-desk" : "is-standby"}${span === 1 ? " is-short" : ""}${dim && dim !== String(shift.staff_id) ? " is-dim" : ""}${changed.has(shift.id) ? " is-changed" : ""}${onEdit ? " is-editable" : ""}`}
+              className={`sch-block ${shift.role === "desk" ? "is-desk" : "is-standby"}${span === 1 ? " is-short" : ""}${dim.length && !dim.includes(shift.staff_id) ? " is-dim" : ""}${changed.has(shift.id) ? " is-changed" : ""}${onEdit ? " is-editable" : ""}${onMove ? " is-movable" : ""}${flash.includes(shift.id) ? " is-flash" : ""}${dragging === shift.id ? " is-dragging" : ""}`}
               style={{ gridRow: `${(shift.start - 540) / 30 + 1}/span ${span}`, gridColumn: shift.lane + 1 }}
               title={label}
               aria-label={`${label}${onEdit ? ` · ${editLabel}` : ""}`}
               onClick={onEdit && (() => onEdit(shift))}
+              onPointerDown={onMove && ((event) => onMove(event, shift))}
             >
               <strong>{name}</strong>
               {span > 1 && <small>{time(shift.start)}–{time(shift.end)}</small>}
@@ -488,8 +577,8 @@ function originalHours(week: Week, person: number): WeeklyHours {
   };
 }
 const hoursText = (value: number) => `${Math.round((value / 60) * 10) / 10}시간`;
-// 근무자별 주당 시간. 관리자는 행을 눌러 조정한다(조정값이 있으면 확정표 계산 대신 그 값을 쓴다).
-function Stats({ week, overrides, onEdit }: { week: Week; overrides: WeeklyHours[]; onEdit?: (person: number) => void }) {
+// 근무자별 주당 시간. 예전에 저장한 조정값이 있으면 확정표 계산 대신 그 값을 보여준다(화면에서 고칠 수는 없다).
+function Stats({ week, overrides }: { week: Week; overrides: WeeklyHours[] }) {
   return (
     <>
       {week.staff.map((person) => {
@@ -502,46 +591,10 @@ function Stats({ week, overrides, onEdit }: { week: Week; overrides: WeeklyHours
             title={<>{person.name}{override && <span className="sch-adjusted"><Badge color="grey">조정됨</Badge></span>}</>}
             sub={sub}
             right={<b className="sch-total">{hoursText(result.total_minutes)}</b>}
-            onClick={onEdit && (() => onEdit(person.id))}
-            ariaLabel={onEdit && `${person.name} · 총 ${hoursText(result.total_minutes)} · ${sub} · 주당 근무 시간 조정`}
           />
         );
       })}
     </>
-  );
-}
-function WeeklyHoursEditor({ week, person, override, onClose, onSaved }: {
-  week: Week;
-  person: number;
-  override?: WeeklyHours;
-  onClose: () => void;
-  onSaved: () => Promise<void>;
-}) {
-  const initial = override ?? originalHours(week, person);
-  const notice = useNotice();
-  return (
-    <Modal title={`${week.staff.find((entry) => entry.id === person)?.name ?? "근무자"} · 주당 근무 시간`} onClose={onClose}>
-      <Form onClose={onClose} onSave={async (form) => {
-        const total = numeric(form, "total") * 60;
-        const desk = numeric(form, "desk") * 60;
-        if (desk > total) throw new Error("데스크 시간은 총 근무 시간보다 길 수 없어요.");
-        await api(`/schedule/hours/${person}`, "PUT", { total_minutes: total, desk_minutes: desk, opens: numeric(form, "opens"), closes: numeric(form, "closes") });
-        await onSaved();
-        onClose();
-        notice("주당 근무 시간을 조정했어요.");
-      }}>
-        <Field label="총 근무 시간 (h)"><input name="total" type="number" required min={0} max={65} step={0.5} defaultValue={initial.total_minutes / 60} /></Field>
-        <Field label="데스크 시간 (h)"><input name="desk" type="number" required min={0} max={65} step={0.5} defaultValue={initial.desk_minutes / 60} /></Field>
-        <Field label="오픈 (회)"><input name="opens" type="number" required min={0} max={5} step={1} defaultValue={initial.opens} /></Field>
-        <Field label="마감 (회)"><input name="closes" type="number" required min={0} max={5} step={1} defaultValue={initial.closes} /></Field>
-        {override && <Action run={async () => {
-          await api(`/schedule/hours/${person}`, "DELETE");
-          await onSaved();
-          onClose();
-          notice("확정표 기준으로 되돌렸어요.");
-        }}>확정표 기준으로 되돌리기</Action>}
-      </Form>
-    </Modal>
   );
 }
 // 오전/오후 + 시 + 00·30분 선택. 오전은 9~11시, 오후는 0~10시만 고를 수 있다.

@@ -38,18 +38,18 @@ try {
     user: { id: 1, role }, records: { data, refresh: async () => {} }, month,
   }));
   const admin = render("admin");
-  // 선택 월 담당자 크게 표시 + 지난 기록 표
+  // 선택 월 담당자 크게 표시 + 지난 기록(월·담당자만)
   assert.match(admin, /<strong>김가<\/strong><strong>이나<\/strong>/);
-  assert.match(admin, /<th scope="row">2026-11<\/th><td>김가, 이나<\/td><td>admin<\/td>/);
-  assert.match(admin, /<th scope="row">2026-10<\/th><td>박다<\/td><td>boss<\/td>/);
-  // 관리자 조작은 관리 메뉴 안에. 이미 뽑은 달은 "다시 추첨"
-  assert.match(admin, /admin-menu[\s\S]*type="number"[^>]*value="2"[\s\S]*다시 추첨[\s\S]*직접 지정/);
+  assert.match(admin, /<span>2026년 11월<\/span><strong>김가, 이나<\/strong>/);
+  assert.match(admin, /<span>2026년 10월<\/span><strong>박다<\/strong>/);
+  // 관리자 조작은 관리 메뉴 안에. 이미 뽑은 달은 "다시 추첨하기"
+  assert.match(admin, /admin-menu[\s\S]*type="number"[^>]*value="2"[\s\S]*다시 추첨하기[\s\S]*담당 직접 정하기/);
   const worker = render("worker");
-  assert.doesNotMatch(worker, /admin-menu|추첨<\/button>|직접 지정|type="number"/);
+  assert.doesNotMatch(worker, /admin-menu|추첨하기<\/button>|담당 직접 정하기|type="number"/);
   const empty = render("admin", []);
   assert.match(empty, /기록이 없어요/);
   assert.match(empty, /clean-none">미추첨/);
-  assert.match(empty, />추첨<\/button>/);
+  assert.match(empty, />담당 추첨하기<\/button>/);
   console.log("PASS: monthly progress counts and text, cleaning names, history, admin-only menu, empty state");
 } finally {
   await server.close();

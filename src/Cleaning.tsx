@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import { api, useResource } from "./api";
 import type { CleaningRecord, Staff, User } from "./types";
-import { dateTime } from "./dates";
 import { ListHeader } from "./tds";
 import { Action, AdminMenu, Form, Loading, Modal, ResourceError, useNotice } from "./ui";
 
@@ -98,8 +97,8 @@ export default function Cleaning({
       {staff.error && <ResourceError error={staff.error} retry={staff.refresh} />}
       {admin && (
         <AdminMenu>
-          <div className="clean-count" role="group" aria-label="추첨 인원" data-stay>
-            <span>추첨 인원</span>
+          <div className="clean-count" role="group" aria-label="뽑을 인원" data-stay>
+            <span>뽑을 인원</span>
             <button
               type="button"
               className="icon-btn"
@@ -111,7 +110,7 @@ export default function Cleaning({
             </button>
             <input
               type="number"
-              aria-label="추첨 인원(명)"
+              aria-label="뽑을 인원(명)"
               min={1}
               max={active.length || 1}
               step={1}
@@ -132,15 +131,15 @@ export default function Cleaning({
           </div>
           {record ? (
             <button type="button" disabled={rolling || !active.length} onClick={() => setDialog("redraw")}>
-              다시 추첨
+              다시 추첨하기
             </button>
           ) : (
             <Action className="" disabled={rolling || !active.length} run={() => draw(false)}>
-              추첨
+              담당 추첨하기
             </Action>
           )}
           <button type="button" disabled={rolling || !staff.data} onClick={() => setDialog("assign")}>
-            직접 지정
+            담당 직접 정하기
           </button>
         </AdminMenu>
       )}
@@ -184,34 +183,18 @@ export default function Cleaning({
       </section>
       <section className="tds-card monthly-list" aria-labelledby="clean-history">
         <ListHeader level={3} id="clean-history" title="지난 기록" />
-        <div className="clean-history-scroll">
-          <table className="clean-history">
-            <caption className="sr-only">청소 담당 지난 기록</caption>
-            <thead>
-              <tr>
-                <th scope="col">월</th>
-                <th scope="col">담당자</th>
-                <th scope="col">추첨/지정</th>
-                <th scope="col">시각</th>
-              </tr>
-            </thead>
-            <tbody>
-              {records.data.map((item) => (
-                <tr key={item.month}>
-                  <th scope="row">{item.month}</th>
-                  <td>{cleaningNames(item)}</td>
-                  <td>{item.username}</td>
-                  <td>{dateTime(item.created_at)}</td>
-                </tr>
-              ))}
-              {!records.data.length && (
-                <tr>
-                  <td colSpan={4}>기록이 없어요.</td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+        {records.data.length ? (
+          <ul className="clean-history">
+            {records.data.map((item) => (
+              <li key={item.month}>
+                <span>{item.month.slice(0, 4)}년 {Number(item.month.slice(5))}월</span>
+                <strong>{cleaningNames(item)}</strong>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="clean-history-empty">기록이 없어요.</p>
+        )}
       </section>
       {dialog === "redraw" && (
         <Modal title="다시 추첨" onClose={() => setDialog(null)}>

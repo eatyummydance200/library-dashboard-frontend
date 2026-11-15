@@ -1,5 +1,8 @@
+import { Fragment, useState } from "react";
+import type { ReactNode } from "react";
 import { api } from "./api";
-import { Field, Form, Modal, useNotice, value } from "./ui";
+import { Field, Form, Modal, value } from "./ui";
+import developer from "../static/developer.png";
 
 export const INQUIRY_CATEGORIES = [
   ["feature", "새 기능"],
@@ -8,18 +11,52 @@ export const INQUIRY_CATEGORIES = [
   ["other", "기타"],
 ] as const;
 
-// 사이드 메뉴·전체 화면의 "개발자에게 문의" 대화상자. 보내면 닫고 토스트로 알린다(기록은 보여 주지 않는다).
+// 오른쪽 아래 상담 버튼으로 여는 채팅 모양 창. 인사말 → "문의하기" → 가운데 양식 → 보내면 채팅에 내 문의와 감사 답변이 붙는다.
+// 보낸 내용은 이 창이 열려 있는 동안만 보인다(기록 조회 API는 없다).
 export default function InquiryDialog({ onClose }: { onClose: () => void }) {
-  const notice = useNotice();
+  const [writing, setWriting] = useState(false);
+  const [sent, setSent] = useState<string[]>([]);
   return (
-    <Modal title="개발자에게 문의" onClose={onClose}>
+    <>
+      <Modal className="inquiry-chat" title="개발자에게 문의" onClose={onClose}>
+        <div className="chat-log" aria-live="polite">
+          <Reply>안녕하세요, 개발자입니다.<br />문의할 내용이 있으면 남겨 주세요.</Reply>
+          {sent.map((title, index) => (
+            <Fragment key={index}>
+              <p className="chat-bubble is-mine">{title}</p>
+              <Reply>문의 감사합니다.<br />확인하고 반영할게요.</Reply>
+            </Fragment>
+          ))}
+        </div>
+        <button type="button" className="btn primary chat-write" onClick={() => setWriting(true)}>
+          {sent.length ? "또 문의하기" : "문의하기"}
+        </button>
+      </Modal>
+      {writing && <InquiryForm onClose={() => setWriting(false)} onSent={(title) => setSent([...sent, title])} />}
+    </>
+  );
+}
+function Reply({ children }: { children: ReactNode }) {
+  return (
+    <div className="chat-msg">
+      <img className="chat-avatar" src={developer} alt="" width={40} height={40} />
+      <div>
+        <small>개발자</small>
+        <p className="chat-bubble">{children}</p>
+      </div>
+    </div>
+  );
+}
+export function InquiryForm({ onClose, onSent }: { onClose: () => void; onSent: (title: string) => void }) {
+  return (
+    <Modal title="문의 남기기" onClose={onClose}>
       <Form
         onClose={onClose}
         submit="보내기"
         onSave={async (data) => {
           await api("/inquiries", "POST", Object.fromEntries(["category", "title", "body"].map((key) => [key, value(data, key)])));
+          onSent(value(data, "title"));
           onClose();
-          notice("문의를 보냈어요.");
         }}
       >
         <fieldset className="field choice-chips">

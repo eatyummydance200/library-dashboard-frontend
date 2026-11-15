@@ -2,8 +2,8 @@
    공통 모양(카드·행·탭·칩·체크)은 tds.css, 여기는 화면 전용 배치만. */
 
 /* ---------- 주·달 이동 (화면 위 Top 안) ---------- */
-.issues-view .week-controls .icon-btn,.monthly-view .week-controls .icon-btn{width:var(--tap);height:var(--tap);background:none;color:var(--grey400)}
-.issues-view .week-controls strong,.monthly-view .week-controls strong{min-width:0;color:var(--ink)}
+.issues-view .week-controls .icon-btn,.monthly-view .week-controls .icon-btn,.schedule-workspace .week-controls .icon-btn{width:var(--tap);height:var(--tap);background:none;color:var(--grey400)}
+.issues-view .week-controls strong,.monthly-view .week-controls strong,.schedule-workspace .week-controls strong{min-width:0;color:var(--ink)}
 .page-top-upper .week-controls{gap:0;margin-left:-12px}
 .page-top-upper .week-controls strong{font-size:15px;font-weight:500;color:var(--text-3)}
 
@@ -44,12 +44,21 @@
 }
 
 /* ---------- 이슈 남기기 ---------- */
-.issue-editor .dialog-head h2{font-size:26px;line-height:1.35;letter-spacing:-.5px}
-.issue-kinds{display:grid;gap:4px;margin:0 -8px 12px;padding:0;border:0;min-width:0}
-.issue-kind{display:flex;align-items:center;gap:14px;min-height:64px;padding:8px;border-radius:14px;cursor:pointer}
-.issue-kind .list-row-text{flex:1}
-@media(hover:hover){.issue-kind:hover{background:var(--grey50)}}
-.issue-period-row{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:16px}
+/* 이슈 남기기 창: 스크롤 없이 한 화면에 들어가도록 구분은 가로 3칸, 입력칸은 낮게 */
+.issue-editor .dialog-head h2{font-size:22px;line-height:1.35;letter-spacing:-.4px}
+.issue-kinds{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:4px 0 0;padding:0;border:0;min-width:0}
+.issue-kind{position:relative;display:flex;flex-direction:column;align-items:center;gap:4px;padding:10px 4px;border-radius:14px;background:var(--grey50);box-shadow:inset 0 0 0 1px var(--grey200);text-align:center;cursor:pointer}
+.issue-kind .list-row-icon{width:32px;height:32px;border-radius:10px;background:none}
+.issue-kind .list-row-title{font-size:15px}
+.issue-kind .list-row-sub{display:none}
+.issue-kind .tds-check{position:absolute;opacity:0;pointer-events:none}
+.issue-kind:has(:checked){background:var(--blue50);box-shadow:inset 0 0 0 2px var(--blue500)}
+.issue-kind:has(:checked) .list-row-icon,.issue-kind:has(:checked) .list-row-title{color:var(--blue700)}
+.issue-kind:has(:focus-visible){outline:3px solid #8ac0ff;outline-offset:2px}
+.issue-editor .field{margin:12px 0}
+.issue-editor .field textarea{min-height:72px}
+@media(hover:hover){.issue-kind:hover{background:var(--grey100)}}
+.issue-period-row{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:12px}
 .issue-period-row p{display:flex;flex-direction:column;margin:0}
 .issue-period-row strong{font-size:17px;color:var(--ink)}
 .issue-period-row span{font-size:13px;color:var(--text-3)}
@@ -89,11 +98,12 @@
 .clean-confetti{position:absolute;inset:0;pointer-events:none;overflow:hidden}
 .clean-confetti span{position:absolute;top:-12px;width:8px;height:12px;border-radius:2px;animation:clean-fall 1.4s ease-in forwards}
 @keyframes clean-fall{to{transform:translate(var(--drift),320px) rotate(var(--spin));opacity:0}}
-.clean-history-scroll{overflow-x:auto;padding:0 24px 8px}
-.clean-history{width:100%;border-collapse:collapse;font-size:14px}
-.clean-history th,.clean-history td{padding:10px 8px 10px 0;border-bottom:1px solid var(--grey100);text-align:left;white-space:nowrap}
-.clean-history thead th{color:var(--text-3);font-weight:500}
-.clean-history tbody th{font-weight:600;font-variant-numeric:tabular-nums}
+/* 지난 기록: 월 + 담당자만 담은 회색 칸을 폭에 맞춰 여러 열로 */
+.clean-history{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px;margin:0;padding:8px 24px 16px;list-style:none}
+.clean-history li{display:flex;flex-direction:column;gap:2px;padding:12px 16px;border-radius:14px;background:var(--grey100)}
+.clean-history span{font-size:13px;color:var(--text-3);font-variant-numeric:tabular-nums}
+.clean-history strong{font-size:16px;font-weight:600;overflow-wrap:anywhere}
+.clean-history-empty{padding:8px 24px 16px;font-size:14px;color:var(--text-3)}
 .clean-count{display:flex;align-items:center;gap:6px;padding:6px 14px;font-size:14px;color:var(--text-3)}
 .clean-count>span{white-space:nowrap}
 .clean-count>span:first-child{margin-right:auto}
@@ -116,6 +126,18 @@
   .monthly-progress{padding:12px 20px 20px}
   .monthly-group .list-header,.monthly-list .list-header{padding:16px 20px 4px}
   .check-row{padding:0 20px;font-size:16px}
-  .clean-history-scroll{padding:0 20px 8px}
+  .clean-history,.clean-history-empty{padding:8px 20px 12px}
   .monthly-note{padding:16px 20px}
 }
+@media(min-width:900px){.dialog.issue-editor{max-height:calc(100dvh - 24px)}}
+.issue-group{margin:0;padding:20px 20px 4px;font-size:15px;font-weight:600;color:var(--text-2)}
+/* 과월호 추첨 연출: 도는 동안 이름이 흐릿하게 바뀌고, 멈춘 조는 튀어 오르며 파란 빛이 퍼진 뒤 색종이가 화면 전체에 내린다 */
+.monthly-group.is-rolling h3{color:var(--grey400);filter:blur(1.5px)}
+.monthly-group.is-rolling{box-shadow:inset 0 0 0 2px var(--blue100)}
+.monthly-group.is-won{animation:draw-won .6s cubic-bezier(.2,1.4,.4,1)}
+.monthly-group.is-won h3{color:var(--brand)}
+@keyframes draw-won{0%{transform:scale(.94);box-shadow:0 0 0 0 #3182f6b3}45%{transform:scale(1.04)}100%{transform:none;box-shadow:0 0 0 22px #3182f600}}
+.draw-confetti{position:fixed;inset:0;z-index:60;pointer-events:none;overflow:hidden}
+.draw-confetti span{position:absolute;top:-16px;width:9px;height:14px;border-radius:2px;animation:draw-fall 1.9s cubic-bezier(.3,.1,.7,1) forwards}
+.draw-confetti span:nth-child(3n){width:10px;height:10px;border-radius:50%}
+@keyframes draw-fall{to{transform:translate(var(--drift),105vh) rotate(var(--spin));opacity:.2}}

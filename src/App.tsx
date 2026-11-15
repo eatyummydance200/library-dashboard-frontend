@@ -329,9 +329,6 @@ function Workspace({ user, onLogout }: { user: User; onLogout: () => void }) {
             aria={`내 계정 (${user.username})`}
             onClick={() => setDialog("account")}
           />
-          {!viewer && (
-            <NavRow icon="megaphone" label="개발자에게 문의" quiet onClick={() => setDialog("inquiry")} />
-          )}
         </nav>
       )}
       <main className="shell-main">
@@ -399,6 +396,11 @@ function Workspace({ user, onLogout }: { user: User; onLogout: () => void }) {
             </button>
           </div>
         </Modal>
+      )}
+      {!viewer && (
+        <button type="button" className="inquiry-fab" aria-label="개발자에게 문의" onClick={() => setDialog("inquiry")}>
+          <Icon name="headset" />
+        </button>
       )}
       {dialog === "inquiry" && !viewer && <InquiryDialog onClose={() => setDialog(null)} />}
       {dialog === "password" && !viewer && (

@@ -71,7 +71,6 @@ export default function Tagging({ user, month: value, onLock }: { user: User; mo
               <span>
                 {person.name}
                 {!person.active && <Badge color="grey">비활성</Badge>}
-                <small>올해 {tags.length}/12</small>
               </span>
               <input
                 type="checkbox"

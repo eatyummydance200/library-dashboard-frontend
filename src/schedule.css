@@ -1,17 +1,5 @@
-/* 시간표 (Figma 모바일 55084:255 · 데스크톱 55090:1980, 근무 블록 55090:1977) + DayStrip.
+/* 시간표 (Figma 모바일 55084:255 · 데스크톱 55090:1980, 근무 블록 55090:1977).
    카드·행·배지·Segmented는 tds.css. 옛 style.css의 .week-board/.worker 규칙은 쓰지 않는다. */
-
-/* ---------- DayStrip: ‹ [월 10] [화 11] … › (시간표·이슈 모바일) ---------- */
-.day-strip{display:flex;flex-direction:column;align-items:stretch;gap:4px}
-.day-strip-row{display:flex;align-items:center;gap:2px}
-.day-strip-nav{flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;width:32px;height:var(--tap);padding:0;border:0;border-radius:10px;background:none;color:var(--grey600)}
-.day-strip-nav svg{width:18px;height:18px}
-.day-chips{display:flex;flex:1;gap:6px;min-width:0}
-.day-chips button{position:relative;flex:1;min-width:0;min-height:var(--tap);padding:0 2px;border:0;border-radius:999px;background:var(--grey100);color:var(--grey700);font-size:15px;font-weight:600;white-space:nowrap;font-variant-numeric:tabular-nums}
-.day-chips button.is-today{color:var(--blue700)}
-.day-chips button[aria-pressed=true]{background:var(--grey900);color:#fff}
-.day-count{position:absolute;top:-4px;right:-2px;min-width:18px;height:18px;padding:0 5px;border-radius:999px;background:var(--red600);color:#fff;font-size:11px;font-weight:700;line-height:18px}
-.day-strip .today-jump{align-self:center;min-height:32px;border:0;background:none;font-size:13px}
 
 /* ---------- 공통 ---------- */
 .sch-card{padding-bottom:12px}
@@ -28,12 +16,17 @@
 .sch-nav svg{width:20px;height:20px}
 .sch-today{min-height:var(--tap);padding:0 8px;border:0;background:none;font-size:14px;font-weight:600}
 .sch-legend{display:flex;gap:6px;margin-left:auto}
-.sch-person{min-height:38px;padding:0 12px;border:0;border-radius:10px;background:var(--grey100);color:var(--grey700);font:inherit;font-size:14px}
+.sch-person .menu-list{min-width:180px;max-height:60vh;overflow-y:auto}
+.sch-person .check-row{padding:0 10px 0 14px;font-size:15px}
 @media(hover:hover){.sch-nav:hover{background:var(--grey100)}}
 
 /* ---------- 5요일 격자 ---------- */
 .sch-scroll{overflow-x:auto;padding:0 24px 12px}
 .sch-board{--slot:25px;display:grid;grid-template-columns:44px repeat(5,minmax(0,1fr));gap:0 12px;min-width:760px;font-variant-numeric:tabular-nums}
+/* 모바일: 고른 요일 하루만 같은 블록 표로 (요일 머리는 위 요일 칩이 대신한다) */
+.sch-board.is-single{grid-template-columns:40px minmax(0,1fr);min-width:0;padding:4px 20px 16px}
+.sch-day-panel>.sch-legend{justify-content:flex-end;margin:0;padding:12px 20px 8px}
+.sch-board.is-single .sch-day-head{display:none}
 .sch-day,.sch-axis{min-width:0}
 .sch-day-head{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;height:60px;margin:0;font-size:17px;font-weight:700;color:var(--ink)}
 .sch-day-head small{font-size:13px;font-weight:500;color:var(--text-3)}
@@ -58,6 +51,11 @@
 .sch-block.is-changed{outline:1.5px dashed var(--red600);outline-offset:-1.5px}
 .sch-block.is-dim{opacity:.25}
 .sch-block.is-editable{cursor:pointer}
+.sch-block.is-movable{cursor:grab;user-select:none;-webkit-user-select:none}
+.sch-block.is-dragging{z-index:6;cursor:grabbing;box-shadow:0 4px 12px #00000024}
+/* 추가·수정·이동 직후: 파란 테두리가 잠깐 보였다 사라진다 */
+.sch-block.is-flash{animation:sch-flash .5s ease-out}
+@keyframes sch-flash{from{box-shadow:0 0 0 2px var(--blue500)}to{box-shadow:0 0 0 2px #3182f600}}
 .sch-block:focus-visible{z-index:5;outline:2px solid var(--blue500);outline-offset:0}
 .sch-handle{position:absolute;left:0;right:0;z-index:2;height:10px;cursor:ns-resize;touch-action:none}
 .sch-handle.start{top:0}
@@ -70,6 +68,5 @@
   .schedule-workspace.view{gap:0}
   .schedule-workspace .tds-card{border-radius:0}
   .schedule-workspace .tds-card+.tds-card{border-top:12px solid var(--canvas)}
-  .day-strip{padding:0 12px 4px}
   .sch-empty-note{padding:16px 20px}
 }

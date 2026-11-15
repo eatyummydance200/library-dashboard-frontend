@@ -107,3 +107,44 @@ body.login-page{background:#fff}
 .admin-menu>summary{gap:2px;padding:0 10px 0 14px;border:0;background:var(--grey100);color:var(--grey700);font-weight:600}
 .admin-menu[open]>summary{background:var(--blue50);color:var(--blue700)}
 @media(hover:hover){.admin-menu>summary:hover{background:var(--grey200)}}
+
+/* ---------- 개발자 문의: 오른쪽 아래 상담 버튼 + 채팅 모양 창 ---------- */
+.inquiry-fab{position:fixed;z-index:35;right:24px;bottom:24px;display:grid;place-items:center;width:56px;height:56px;border-radius:50%;background:var(--blue500);color:#fff;box-shadow:0 6px 16px #3182f640}
+.inquiry-fab svg{width:26px;height:26px}
+.chat-msg{display:flex;gap:10px;margin:8px 0 16px}
+.chat-avatar{flex-shrink:0;width:40px;height:40px;border-radius:50%;background:var(--blue50);object-fit:contain}
+.chat-msg small{display:block;margin-bottom:4px;font-size:13px;color:var(--text-3)}
+.chat-bubble{display:inline-block;padding:12px 16px;border-radius:4px 18px 18px 18px;background:var(--grey100);font-size:15px;line-height:1.5;color:var(--ink)}
+.chat-log{display:flex;flex-direction:column;min-height:min(420px,50dvh)}
+.chat-bubble.is-mine{align-self:flex-end;max-width:80%;margin:0 0 16px;border-radius:18px 4px 18px 18px;background:var(--blue500);color:#fff;overflow-wrap:anywhere}
+.chat-write{width:100%;min-height:52px;font-size:16px}
+@media(hover:hover){.inquiry-fab:hover{background:var(--blue600)}}
+@media(max-width:899px){.inquiry-fab{right:16px;bottom:calc(var(--tabbar) + 16px + var(--safe-bottom));width:52px;height:52px}}
+@media(min-width:900px){
+  /* 화면 가운데가 아니라 버튼 자리 위로 뜬다 */
+  .dialog.inquiry-chat{width:400px;margin:auto 24px 24px auto;max-height:calc(100dvh - 48px)}
+  .dialog.inquiry-chat::backdrop{background:#0000001f}
+}
+
+/* ---------- 모션: 알림은 아래에서 올라오고, 대화상자는 살짝 커지며(모바일은 아래에서) 나타난다 ---------- */
+.toast{animation:toast-in .25s cubic-bezier(.2,.8,.2,1)}
+@keyframes toast-in{from{opacity:0;transform:translate(-50%,12px)}}
+.dialog[open]{animation:dialog-in .22s cubic-bezier(.2,.8,.2,1)}
+@keyframes dialog-in{from{opacity:0;transform:translateY(24px)}}
+@media(min-width:900px){@keyframes dialog-in{from{opacity:0;transform:scale(.96)}}}
+
+/* ---------- 모션(토스풍, 절제): 화면은 살짝 떠오르며 나타나고, 누르면 조금 눌리고, 상태 색은 부드럽게 바뀐다.
+   움직임 줄이기 설정은 style.css 맨 끝에서 한꺼번에 끈다. ---------- */
+:root{--ease:cubic-bezier(.2,.8,.2,1)}
+.view{animation:view-in .28s var(--ease)}
+@keyframes view-in{from{opacity:0;transform:translateY(8px)}}
+.side-row,.tabbar button,.icon-btn,.inquiry-fab,button.list-row-main,.tds-segmented button,.tds-tabs button,.issue-kind,.menu-list>button{transition:transform .15s var(--ease),background-color .2s,color .2s,box-shadow .2s}
+.side-row:active,button.list-row-main:active,.issue-kind:active{transform:scale(.98)}
+.tabbar button:active,.icon-btn:active,.inquiry-fab:active,.tds-segmented button:active{transform:scale(.94)}
+.tds-check{transition:background-color .2s}
+.tds-check:checked{animation:check-in .25s var(--ease)}
+@keyframes check-in{from{transform:scale(.8)}}
+details[open]>.menu-list{animation:menu-in .16s var(--ease)}
+@keyframes menu-in{from{opacity:0;transform:translateY(-4px)}}
+.dialog[open]::backdrop{animation:fade-in .2s ease-out}
+@keyframes fade-in{from{opacity:0}}

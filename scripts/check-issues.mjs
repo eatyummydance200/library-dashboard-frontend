@@ -13,7 +13,7 @@ try {
     { id: 4, day: "2026-10-26", end_day: "2026-10-28", category: "공지", title: "공사 안내", body: "3층 공사", done: 0, author_id: 2 },
   ];
   const render = (props = {}) => renderToStaticMarkup(createElement(IssueList, {
-    resource: { data, refresh: async () => {} }, user: { id: 1, role: "admin" }, filter: "all", ...props,
+    resource: { data, refresh: async () => {} }, user: { id: 1, role: "admin" }, ...props,
   }));
   const html = render();
   const items = html.split('<article class="issue-row').slice(1);
@@ -62,8 +62,6 @@ try {
   const viewer = render({ user: { id: 1, role: "viewer" } });
   assert.doesNotMatch(viewer, /issue-menu/);
   assert.equal((viewer.match(/type="checkbox"[^>]*disabled=""/g) || []).length, 4);
-  assert.doesNotMatch(render({ filter: "open" }), /정리 완료/);
-  assert.doesNotMatch(render({ filter: "done" }), /신문 확인|행사 안내|공사 안내/);
   assert.match(render({ resource: { data: [], refresh: async () => {} } }), /해당하는 이슈가 없어요/);
 
   const renderToday = (entries = data, role = "admin", error) => renderToStaticMarkup(createElement(TodayIssues, {
@@ -78,7 +76,7 @@ try {
   assert.match(renderToday(null), /불러오는 중/);
   assert.match(renderToday(null, "admin", "연결 오류"), /연결 오류|다시 시도/);
   assert.equal((renderToday(data, "worker").match(/type="checkbox"/g) || []).length, 4);
-  console.log("PASS: issue order, sub line (period/time), category icons, no author, covers, checkbox status, done body visible, menu permissions, filters, daily sections, empty states, errors");
+  console.log("PASS: issue order, sub line (period/time), category icons, no author, covers, checkbox status, done body visible, menu permissions, daily sections, empty states, errors");
 } finally {
   await server.close();
 }

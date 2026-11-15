@@ -33,16 +33,7 @@ export default function More({ user, open, dialog, logout }: {
       <Divider />
       <ListHeader title="계정·도움" />
       {!viewer && (
-        <>
-          <ListRow icon="lock" title="비밀번호 변경" right={<Chevron />} onClick={() => dialog("password")} />
-          <ListRow
-            icon="megaphone"
-            title="개발자에게 문의"
-            sub="불편한 점이나 고장을 알려 주세요"
-            right={<Chevron />}
-            onClick={() => dialog("inquiry")}
-          />
-        </>
+        <ListRow icon="lock" title="비밀번호 변경" right={<Chevron />} onClick={() => dialog("password")} />
       )}
       <ListRow icon="exit" title="로그아웃" onClick={() => void logout()} />
     </section>

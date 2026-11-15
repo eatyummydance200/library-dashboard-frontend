@@ -3,7 +3,7 @@ import { api, message, useResource } from "./api";
 import type { Issue, User } from "./types";
 import { addDays, days, koreaParts, monday, shortDay, today, weekLabel } from "./dates";
 import { todayIndex } from "./DayStrip";
-import { Chips, PageTop, Segmented, Tabs } from "./tds";
+import { PageTop, Tabs } from "./tds";
 import "./screens.css";
 import {
   Action,
@@ -20,28 +20,19 @@ import {
 } from "./ui";
 
 type IssuesResource = ReturnType<typeof useResource<Issue[]>>;
-type Filter = "all" | "open" | "done";
 // 구분별 아이콘·설명 (목록 행과 이슈 남기기 창이 함께 쓴다)
 const categories = [
   { key: "인계", icon: "swap", desc: "다음 근무자에게 넘길 일" },
   { key: "공지", icon: "megaphone", desc: "모두가 알아야 할 소식" },
-  { key: "시설", icon: "gear", desc: "고장·수리가 필요한 곳" },
+  { key: "분실물", icon: "search", desc: "주인을 찾고 있는 물건" },
 ] as const;
-const categoryIcon = (category: string) => categories.find((item) => item.key === category)?.icon ?? "message";
-const filterItems = (list: Issue[], counts: boolean) =>
-  (
-    [
-      ["all", "전체", list.length],
-      ["open", "진행 중", list.filter((issue) => !issue.done).length],
-      ["done", "완료", list.filter((issue) => issue.done).length],
-    ] as const
-  ).map(([key, label, count]) => ({ key, label: counts ? `${label} ${count}` : label }));
+// "시설"은 예전 구분. 새로 고를 수는 없고 기존 이슈에만 남아 있다.
+const categoryIcon = (category: string) => categories.find((item) => item.key === category)?.icon ?? (category === "시설" ? "gear" : "message");
 // 데이터(주간 이슈·필터·추가 창)는 여기 하나. 웹은 5요일 카드, 모바일은 요일 탭 + 하루 목록
 export default function Issues({ resource, user }: { resource: IssuesResource; user: User }) {
   const mobile = useMobile();
   const [week, setWeek] = useState(monday());
   const weekly = useResource<Issue[]>(`/issues?week=${week}`);
-  const [filter, setFilter] = useState<Filter>("all");
   const [adding, setAdding] = useState<string | null>(null);
   const [day, setDay] = useState(todayIndex);
   useEffect(() => {
@@ -57,11 +48,12 @@ export default function Issues({ resource, user }: { resource: IssuesResource; u
   }, [weekly.refresh]);
   const dates = days.map((_, index) => addDays(week, index));
   const now = today();
-  const of = (date: string) => weekly.data?.filter((issue) => covers(issue, date)) ?? [];
-  const list = (date: string, empty: string, icons: boolean) => (
+  // 주간 이슈 = 여러 날에 걸친 이슈. 위에 따로 모으고, 요일별 목록에는 하루짜리만 둔다.
+  const spans = weekly.data?.filter((issue) => issue.day !== issue.end_day) ?? [];
+  const of = (date: string) => weekly.data?.filter((issue) => issue.day === date && issue.end_day === date) ?? [];
+  const list = (data: Issue[], empty: string, icons: boolean) => (
     <IssueList
-      resource={{ ...weekly, error: undefined, data: of(date) }}
-      filter={filter}
+      resource={{ ...weekly, error: undefined, data }}
       user={user}
       onChanged={resource.refresh}
       empty={empty}
@@ -96,6 +88,9 @@ export default function Issues({ resource, user }: { resource: IssuesResource; u
               </button>
             )}
           />
+          <h2 className="issue-group">주간 이슈</h2>
+          {weekly.data && list(spans, "여러 날에 걸친 이슈가 없어요.", true)}
+          <h2 className="issue-group">일간 이슈</h2>
           <Tabs
             fluid
             label="이슈 요일 선택"
@@ -109,9 +104,8 @@ export default function Issues({ resource, user }: { resource: IssuesResource; u
           />
           {weekly.data ? (
             <div className="issues-day" role="tabpanel" aria-label={`${shortDay(dates[day])} ${days[day]}요일 이슈`}>
-              <Chips label="이슈 상태 필터" value={filter} onChange={setFilter} items={filterItems(of(dates[day]), true)} />
               <ResourceError error={weekly.error} retry={weekly.refresh} />
-              {list(dates[day], filter === "all" ? "이 날은 남겨진 이슈가 없어요." : "해당하는 이슈가 없어요.", true)}
+              {list(of(dates[day]), "이 날은 남겨진 이슈가 없어요.", true)}
             </div>
           ) : <Loading error={weekly.error} retry={weekly.refresh} />}
         </>
@@ -122,7 +116,6 @@ export default function Issues({ resource, user }: { resource: IssuesResource; u
             lower={weekly.data && (left ? `${thisWeek}에 ${left}건이 남아 있어요` : `${thisWeek} 이슈를 모두 마쳤어요`)}
             actions={
               <>
-                <Segmented label="이슈 상태 필터" value={filter} onChange={setFilter} items={filterItems([], false)} />
                 {stepper}
                 {canAdd && (
                   <button type="button" className="btn primary" onClick={() => setAdding(dates.includes(now) ? now : week)}>
@@ -135,6 +128,12 @@ export default function Issues({ resource, user }: { resource: IssuesResource; u
           {weekly.data ? (
             <>
               <ResourceError error={weekly.error} retry={weekly.refresh} />
+              <section className="tds-card issue-day" aria-label="주간 이슈">
+                <header className="issue-day-head">
+                  <h2>주간 이슈</h2>
+                </header>
+                {list(spans, "여러 날에 걸친 이슈가 없어요.", false)}
+              </section>
               <div className="issue-week">
                 {days.map((label, index) => {
                   const date = dates[index];
@@ -144,7 +143,7 @@ export default function Issues({ resource, user }: { resource: IssuesResource; u
                         <h2>{label} {shortDay(date)}</h2>
                         {date === now && <span>오늘</span>}
                       </header>
-                      {list(date, "이슈가 없어요.", false)}
+                      {list(of(date), "이슈가 없어요.", false)}
                     </section>
                   );
                 })}
@@ -198,20 +197,18 @@ export function TodayIssues({ resource, user, onChanged }: {
 }) {
   return (
     <div className="today-issues">
-      <IssueList resource={resource} user={user} filter="all" onChanged={onChanged} empty="오늘 등록된 이슈가 없어요. 조용한 하루예요!" />
+      <IssueList resource={resource} user={user} onChanged={onChanged} empty="오늘 등록된 이슈가 없어요. 조용한 하루예요!" />
     </div>
   );
 }
 export function IssueList({
   resource,
-  filter,
   onChanged,
   user,
   empty = "해당하는 이슈가 없어요.",
   icons = true,
 }: {
   resource: IssuesResource;
-  filter: string;
   onChanged?: () => Promise<void>;
   user: User;
   empty?: string;
@@ -221,7 +218,7 @@ export function IssueList({
     return <Loading error={resource.error} retry={resource.refresh} />;
   // 진행 중 먼저, 완료는 아래로. sort는 안정 정렬이라 같은 상태끼리는 서버 순서를 유지한다.
   const visible = resource.data
-    .filter((issue) => filter === "all" || (filter === "done") === !!issue.done)
+    .slice()
     .sort((a, b) => a.done - b.done);
   return (
     <>
@@ -366,7 +363,7 @@ export function IssueEditor({
       >
         <fieldset className="issue-kinds">
           <legend className="sr-only">구분</legend>
-          {categories.map((option) => (
+          {(issue?.category === "시설" ? [...categories, { key: "시설", icon: "gear", desc: "예전 구분" } as const] : categories).map((option) => (
             <label key={option.key} className="issue-kind">
               <span className="list-row-icon" aria-hidden="true">
                 <Icon name={option.icon} />

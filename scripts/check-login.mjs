@@ -17,12 +17,12 @@ try {
   assert.match(html, /type="password"/);
   assert.match(html, /aria-label="비밀번호 보기"/);
 
-  // 모바일 "전체" 화면: 보기 전용 계정은 인적관리·비밀번호 변경·문의가 없다
+  // 모바일 "전체" 화면: 보기 전용 계정은 인적관리·비밀번호 변경이 없다(문의는 화면 오른쪽 아래 버튼)
   const { default: More } = await server.ssrLoadModule("/src/More.tsx");
   const more = (role) => renderToStaticMarkup(createElement(More, {
     user: { id: 1, username: "serial", role }, open() {}, dialog() {}, logout: async () => {},
   }));
-  for (const text of ["인적관리", "매뉴얼", "비밀번호 변경", "개발자에게 문의", "로그아웃", "공용 계정"])
+  for (const text of ["인적관리", "매뉴얼", "비밀번호 변경", "로그아웃", "공용 계정"])
     assert.match(more("worker"), new RegExp(text));
   const viewer = more("viewer");
   assert.match(viewer, /매뉴얼/);
