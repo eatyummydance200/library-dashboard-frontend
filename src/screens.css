@@ -1,28 +1,143 @@
-/* 이슈·인적관리·월간 업무(과월호·태깅·청소)의 모바일-2 규칙. 웹(900px 이상)은 style.css 그대로. */
-.fold-body{padding:0 18px 16px}
-.fab{position:fixed;z-index:25;right:16px;bottom:calc(var(--tabbar,64px) + 16px + var(--safe-bottom));min-height:54px;padding:0 22px;border-radius:999px;font-size:16px;box-shadow:0 8px 24px #03499a4d}
-.fab svg{width:20px;height:20px;stroke-width:2.4}
-/* 개발자 문의: 항상 우측 하단에 뜨는 버튼. 화면에 추가(.fab) 버튼이 있으면 그 위로 올린다 */
-.inquiry-fab{position:fixed;z-index:26;right:16px;bottom:calc(16px + var(--safe-bottom));display:inline-flex;align-items:center;gap:6px;min-height:48px;padding:0 18px;border:1px solid var(--brand-line);border-radius:999px;background:#fff;color:var(--brand);font-size:15px;font-weight:700;box-shadow:0 6px 20px #14284a26}
-@media(hover:hover){.inquiry-fab:hover{background:var(--brand-bg)}}
+/* 이슈 (Figma 55087:896 · 55091:2224 · 이슈 남기기 55084:670)와 월간 업무 (55087:1222 · 55091:2540).
+   공통 모양(카드·행·탭·칩·체크)은 tds.css, 여기는 화면 전용 배치만. */
+
+/* ---------- 주·달 이동 (화면 위 Top 안) ---------- */
+.issues-view .week-controls .icon-btn,.monthly-view .week-controls .icon-btn,.schedule-workspace .week-controls .icon-btn{width:var(--tap);height:var(--tap);background:none;color:var(--grey400)}
+.issues-view .week-controls strong,.monthly-view .week-controls strong,.schedule-workspace .week-controls strong{min-width:0;color:var(--ink)}
+.page-top-upper .week-controls{gap:0;margin-left:-12px}
+.page-top-upper .week-controls strong{font-size:15px;font-weight:500;color:var(--text-3)}
+
+/* ---------- 이슈 행 (TDS List Row 모양 + ⋯ 메뉴 + 원형 체크) ---------- */
+.issue-row{display:flex;align-items:center;gap:2px;min-height:64px;padding:4px 12px 4px 24px}
+.issue-row-main{display:flex;align-items:center;gap:14px;flex:1;min-width:0;padding:8px 0;border:0;border-radius:12px;background:none;text-align:left;color:inherit;font:inherit;cursor:pointer}
+.issue-row .list-row-icon{width:36px;height:36px;border-radius:12px;background:var(--grey100);color:var(--grey500)}
+.issue-row .list-row-icon svg{width:20px;height:20px}
+.issue-row .list-row-sub{font-variant-numeric:tabular-nums}
+.issue-row.is-done .issue-title{color:var(--text-2)}
+.issue-body:not([hidden]){display:block;margin-top:6px;font-size:15px;line-height:1.6;color:var(--text-2);white-space:pre-wrap;overflow-wrap:anywhere}
+.issue-check{display:flex;align-items:center;justify-content:center;flex-shrink:0;width:var(--tap);height:var(--tap);cursor:pointer}
+.issue-menu summary{display:grid;place-items:center;width:var(--tap);height:var(--tap);border-radius:12px;color:var(--grey400);font-size:20px;line-height:1}
+.issue-menu[open] summary{background:var(--grey100);color:var(--grey700)}
+.issue-empty{margin:0;padding:12px 24px;font-size:15px;color:var(--text-3)}
+@media(hover:hover){.issue-row-main:hover .issue-title{color:var(--brand)}}
+/* ⋯ 메뉴 목록이 카드 밖으로 나올 수 있게 (tds-card는 기본이 overflow:hidden) */
+.tds-card:has(.issue-menu){overflow:visible}
+
+/* ---------- 이슈 데스크톱: 5요일 카드 ---------- */
+/* 폭이 모자라면 요일 카드를 다음 줄로 넘긴다 (1280 이상에서 5열) */
+.issue-week{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;align-items:start}
+.issue-day{padding:18px 0 8px}
+.issue-day.is-today{box-shadow:inset 0 0 0 2px var(--blue100)}
+.issue-day-head{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:0 20px 4px 24px}
+.issue-day-head h2{margin:0;font-size:15px;font-weight:600;color:var(--ink);font-variant-numeric:tabular-nums}
+.issue-day-head span{font-size:13px;font-weight:600;color:var(--brand)}
+.issue-day .issue-row{padding:0 6px 0 24px}
+.issue-day .list-row-title{font-size:16px}
+.issue-day .list-row-sub{font-size:13px}
+.issue-day .issue-empty{padding:8px 24px 12px;font-size:14px}
+/* 좁은 요일 카드에서는 ⋯ 메뉴를 행에 올렸을 때(또는 키보드 포커스)만 띄워 제목 자리를 넓힌다 */
+@media(hover:hover){
+  .issue-day .issue-row{position:relative}
+  .issue-day .issue-menu{position:absolute;top:6px;right:50px;opacity:0}
+  .issue-day .issue-row:hover .issue-menu,.issue-day .issue-menu:focus-within,.issue-day .issue-menu[open]{opacity:1}
+  .issue-day .issue-menu summary{width:32px;height:28px;border-radius:8px;background:#fff}
+}
+
+/* ---------- 이슈 남기기 ---------- */
+/* 이슈 남기기 창: 스크롤 없이 한 화면에 들어가도록 구분은 가로 3칸, 입력칸은 낮게 */
+.issue-editor .dialog-head h2{font-size:22px;line-height:1.35;letter-spacing:-.4px}
+.issue-kinds{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:4px 0 0;padding:0;border:0;min-width:0}
+.issue-kind{position:relative;display:flex;flex-direction:column;align-items:center;gap:4px;padding:10px 4px;border-radius:14px;background:var(--grey50);box-shadow:inset 0 0 0 1px var(--grey200);text-align:center;cursor:pointer}
+.issue-kind .list-row-icon{width:32px;height:32px;border-radius:10px;background:none}
+.issue-kind .list-row-title{font-size:15px}
+.issue-kind .list-row-sub{display:none}
+.issue-kind .tds-check{position:absolute;opacity:0;pointer-events:none}
+.issue-kind:has(:checked){background:var(--blue50);box-shadow:inset 0 0 0 2px var(--blue500)}
+.issue-kind:has(:checked) .list-row-icon,.issue-kind:has(:checked) .list-row-title{color:var(--blue700)}
+.issue-kind:has(:focus-visible){outline:3px solid #8ac0ff;outline-offset:2px}
+.issue-editor .field{margin:12px 0}
+.issue-editor .field textarea{min-height:72px}
+@media(hover:hover){.issue-kind:hover{background:var(--grey100)}}
+.issue-period-row{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:12px}
+.issue-period-row p{display:flex;flex-direction:column;margin:0}
+.issue-period-row strong{font-size:17px;color:var(--ink)}
+.issue-period-row span{font-size:13px;color:var(--text-3)}
+.issue-period-fields:not([hidden]){display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:12px}
+/* 시안대로 큰 버튼 하나만. 닫기는 위의 × */
+.issue-editor .form-actions .btn:not(.primary){display:none}
+.issue-editor .form-actions .btn.primary{flex:1 1 auto;min-height:56px;border-radius:16px;font-size:17px}
+
+/* ---------- 월간 업무 ---------- */
+@media(min-width:900px){.monthly-view>.tds-tabs{align-self:flex-start;width:420px;padding:0}}
+.monthly-panel{display:flex;flex-direction:column;gap:12px;padding-top:16px}
+.monthly-progress{position:relative;padding:20px 24px 24px}
+.monthly-progress-label{margin:0 0 2px;font-size:13px;color:var(--text-3)}
+.monthly-progress>strong{display:block;font-size:17px;font-weight:700;color:var(--ink)}
+.monthly-progress .tds-progress{margin-top:16px}
+.monthly-groups{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px}
+.monthly-group,.monthly-list{padding-bottom:8px}
+.monthly-group .list-header,.monthly-list .list-header{padding:20px 24px 4px}
+.monthly-group .is-complete{color:var(--green700);font-weight:600}
+.monthly-group .is-count{color:var(--blue600);font-variant-numeric:tabular-nums}
+.monthly-note{margin:0;padding:0 16px;font-size:14px;color:var(--text-3)}
+/* 체크 행: 이름 + 오른쪽 원형 체크. 줄 전체가 label이라 어디를 눌러도 체크된다 */
+.check-row{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:var(--tap);padding:0 24px;font-size:17px;color:var(--ink);cursor:pointer}
+.check-row:has(:disabled){cursor:default}
+.check-row:has([aria-busy=true]){opacity:.6}
+.check-row>span{display:flex;align-items:center;flex-wrap:wrap;gap:0 8px;min-width:0;overflow-wrap:anywhere}
+.check-row small{font-size:13px;color:var(--text-3)}
+
+/* 청소 */
+.clean-result{overflow:hidden}
+.clean-names{display:flex;flex-wrap:wrap;gap:4px 14px;margin-top:4px}
+.clean-names strong{font-size:26px;font-weight:700;color:var(--brand)}
+.clean-slot{min-width:88px;padding:8px 12px;border-radius:14px;background:var(--grey100);color:var(--grey500);font-size:22px;font-weight:700;text-align:center}
+.clean-slot.is-stopped{background:var(--blue50);color:var(--brand);animation:clean-stop .3s ease-out}
+@keyframes clean-stop{from{transform:scale(1.15)}}
+.clean-none{font-size:17px;color:var(--text-3)}
+.clean-confetti{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+.clean-confetti span{position:absolute;top:-12px;width:8px;height:12px;border-radius:2px;animation:clean-fall 1.4s ease-in forwards}
+@keyframes clean-fall{to{transform:translate(var(--drift),320px) rotate(var(--spin));opacity:0}}
+/* 지난 기록: 월 + 담당자만 담은 회색 칸을 폭에 맞춰 여러 열로 */
+.clean-history{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px;margin:0;padding:8px 24px 16px;list-style:none}
+.clean-history li{display:flex;flex-direction:column;gap:2px;padding:12px 16px;border-radius:14px;background:var(--grey100)}
+.clean-history span{font-size:13px;color:var(--text-3);font-variant-numeric:tabular-nums}
+.clean-history strong{font-size:16px;font-weight:600;overflow-wrap:anywhere}
+.clean-history-empty{padding:8px 24px 16px;font-size:14px;color:var(--text-3)}
+.clean-count{display:flex;align-items:center;gap:6px;padding:6px 14px;font-size:14px;color:var(--text-3)}
+.clean-count>span{white-space:nowrap}
+.clean-count>span:first-child{margin-right:auto}
+.clean-count .icon-btn{width:36px;height:36px}
+.clean-count input{width:52px;min-height:var(--tap);padding:6px;border:0;border-radius:12px;background:var(--grey100);text-align:center;font-size:17px;font-weight:700}
+.clean-pick{margin-top:8px}
+.clean-pick .check-row{padding:0 4px}
+
+/* ---------- 모바일: 흰 화면, 섹션 사이 굵은 회색 줄 ---------- */
 @media(max-width:899px){
-  .inquiry-fab{bottom:calc(var(--tabbar) + 16px + var(--safe-bottom))}
-  body:has(.fab) .inquiry-fab{bottom:calc(var(--tabbar) + 82px + var(--safe-bottom))}
-  .app .main{padding-bottom:calc(var(--tabbar) + 150px + var(--safe-bottom))}
+  body[data-page=issues],body[data-page=monthly]{background:#fff}
+  .issues-view.view,.monthly-view.view{gap:0}
+  .issues-day .tds-chips{padding:16px 20px 8px}
+  .issue-row{padding:2px 8px 2px 20px}
+  .monthly-panel{gap:0;padding-top:8px}
+  .monthly-panel .tds-card{border-radius:0}
+  .monthly-panel .tds-card+.tds-card,.monthly-groups{border-top:12px solid var(--canvas)}
+  .monthly-groups{grid-template-columns:1fr;gap:0}
+  .monthly-group+.monthly-group{border-top:12px solid var(--canvas)}
+  .monthly-progress{padding:12px 20px 20px}
+  .monthly-group .list-header,.monthly-list .list-header{padding:16px 20px 4px}
+  .check-row{padding:0 20px;font-size:16px}
+  .clean-history,.clean-history-empty{padding:8px 20px 12px}
+  .monthly-note{padding:16px 20px}
 }
-/* 웹에서는 가운데 대화상자 대신 버튼 바로 위에 붙는 팝업 */
-@media(min-width:900px){
-  .dialog.inquiry-popup{width:min(440px,calc(100% - 32px));margin:auto 16px 76px auto;max-height:calc(100dvh - 100px)}
-  .dialog.inquiry-popup::backdrop{background:#14284a26}
-}
-/* 관리자는 이름 줄 전체가 수정 버튼 */
-button.contact-main{text-align:left;min-height:var(--tap);border-radius:10px}
-.archive-actions{display:flex;gap:8px;flex-wrap:wrap}
-.fold-body .archive-notice{margin:0 0 12px}
-.cleaning-actions{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
-.cleaning-actions>.btn{flex:1 1 120px}
-.cleaning-actions .cleaning-count{width:100%;padding:0}
-.fold-body .table-inset{margin:0}
-.issues-view .list-card{padding-bottom:4px}
-/* FAB가 마지막 줄을 가리지 않게 */
-@media(max-width:899px){.issues-view{padding-bottom:72px}}
+@media(min-width:900px){.dialog.issue-editor{max-height:calc(100dvh - 24px)}}
+.issue-group{margin:0;padding:20px 20px 4px;font-size:15px;font-weight:600;color:var(--text-2)}
+/* 과월호 추첨 연출: 도는 동안 이름이 흐릿하게 바뀌고, 멈춘 조는 튀어 오르며 파란 빛이 퍼진 뒤 색종이가 화면 전체에 내린다 */
+.monthly-group.is-rolling h3{color:var(--grey400);filter:blur(1.5px)}
+.monthly-group.is-rolling{box-shadow:inset 0 0 0 2px var(--blue100)}
+.monthly-group.is-won{animation:draw-won .6s cubic-bezier(.2,1.4,.4,1)}
+.monthly-group.is-won h3{color:var(--brand)}
+@keyframes draw-won{0%{transform:scale(.94);box-shadow:0 0 0 0 #3182f6b3}45%{transform:scale(1.04)}100%{transform:none;box-shadow:0 0 0 22px #3182f600}}
+.draw-confetti{position:fixed;inset:0;z-index:60;pointer-events:none;overflow:hidden}
+.draw-confetti span{position:absolute;top:-16px;width:9px;height:14px;border-radius:2px;animation:draw-fall 1.9s cubic-bezier(.3,.1,.7,1) forwards}
+.draw-confetti span:nth-child(3n){width:10px;height:10px;border-radius:50%}
+@keyframes draw-fall{to{transform:translate(var(--drift),105vh) rotate(var(--spin));opacity:.2}}

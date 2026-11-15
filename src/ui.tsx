@@ -30,8 +30,10 @@ export function useMobile() {
 
 export const NoticeContext = createContext<(value: string) => void>(() => {});
 export const useNotice = () => useContext(NoticeContext);
-// 상단 바 오른쪽의 "관리" 자리. 화면이 AdminMenu를 그리면 여기로 옮겨진다(없으면 제자리).
+// "관리" 메뉴 자리. 화면 제목(PageTop)이 AdminOutlet으로 자기 안의 빈 자리를 등록하고,
+// 화면이 어디서든 AdminMenu를 그리면 그 자리(AdminSlot)로 옮겨진다(없으면 제자리).
 export const AdminSlot = createContext<HTMLElement | null>(null);
+export const AdminOutlet = createContext<(element: HTMLElement | null) => void>(() => {});
 // details 기반 드롭다운. 바깥 클릭·Esc로 닫히고, 안의 버튼을 누르면 닫힌다(data-stay 안쪽은 제외).
 export function Menu({ summary, label, className = "", children }: {
   summary: ReactNode;
@@ -263,17 +265,6 @@ export function Action({
     >
       {children}
     </button>
-  );
-}
-// 드물게 쓰는 내용·관리 기능을 접어 두는 목록 줄. 닫혀 있어도 내용은 DOM에 있다.
-export function Fold({ title, children }: { title: string; children: ReactNode }) {
-  return (
-    <details className="card fold-card">
-      <summary className="card-head">
-        <h2>{title}</h2>
-      </summary>
-      <div className="fold-body">{children}</div>
-    </details>
   );
 }
 // ‹ 2026년 11월 › 처럼 값 하나를 앞뒤로 넘기는 작은 컨트롤

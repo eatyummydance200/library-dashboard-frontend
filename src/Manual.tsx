@@ -2,10 +2,12 @@ import { Fragment, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef
 import type { ReactNode } from "react";
 import { api, message, upload, useResource } from "./api";
 import type { ManualData, User } from "./types";
-import { Action, Fold, Icon, Loading, useMobile, useNotice } from "./ui";
+import { Action, Icon, Loading, useMobile, useNotice } from "./ui";
+import { Badge, Card, Chevron, ListHeader, ListRow, PageTop } from "./tds";
+import { koreaParts } from "./dates";
 import { highlight, inline, parse, search, sections, terms } from "./markdown";
 import type { Block, Heading, List, Span } from "./markdown";
-import icons from "./icons.json";
+import "./manual.css";
 
 const shortcuts = [
   ["오픈", "2"],
@@ -23,7 +25,7 @@ export default function Manual({ user }: { user: User }) {
   const [editing, setEditing] = useState(false);
   const onEdit = user.role === "admin" && !editing ? () => setEditing(true) : undefined;
   return (
-    <section className="view manual" aria-label="매뉴얼">
+    <section className="view mnl" aria-label="매뉴얼">
       {!manual.data ? (
         <Loading error={manual.error} retry={manual.refresh} />
       ) : editing ? (
@@ -40,6 +42,17 @@ export default function Manual({ user }: { user: User }) {
       )}
     </section>
   );
+}
+
+// "11월 3일 관리자가 고쳤어요" (받침에 따라 이/가)
+export function updatedLine(at: string | null, by: string | null) {
+  if (!at) return undefined;
+  const { month, day } = koreaParts(new Date(at));
+  const when = `${Number(month)}월 ${Number(day)}일`;
+  if (!by) return `${when}에 고쳤어요`;
+  const code = by.charCodeAt(by.length - 1) - 0xac00;
+  const josa = code >= 0 && code < 11172 ? (code % 28 ? "이" : "가") : "이(가)";
+  return `${when} ${by}${josa} 고쳤어요`;
 }
 
 function ManualViewer({ data, onEdit }: { data: ManualData; onEdit?: () => void }) {
@@ -80,7 +93,7 @@ function ManualViewer({ data, onEdit }: { data: ManualData; onEdit?: () => void 
     return { pages, pageOf };
   }, [blocks]);
   const [pageId, setPageId] = useState("");
-  // pageId가 ""이면 홈(장 카드 목록)
+  // pageId가 ""이면 홈(목차)
   const pageIndex = pageId ? pages.findIndex((page) => page.id === pageId) : -1;
   const page = pageIndex >= 0 ? pages[pageIndex] : undefined;
   function goHome() {
@@ -109,9 +122,9 @@ function ManualViewer({ data, onEdit }: { data: ManualData; onEdit?: () => void 
     if (!element) return;
     const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
     element.scrollIntoView({ behavior: still ? "auto" : "smooth", block: "start" });
-    element.classList.remove("flash");
+    element.classList.remove("mnl-flash");
     void element.offsetWidth; // 같은 섹션을 다시 눌러도 강조가 다시 돌게
-    element.classList.add("flash");
+    element.classList.add("mnl-flash");
   }, [jump, pageOf]);
   async function copy(id: string) {
     const url = `${location.origin}${location.pathname}#manual/${id}`;
@@ -169,10 +182,11 @@ function ManualViewer({ data, onEdit }: { data: ManualData; onEdit?: () => void 
         .map((chapter) => {
           const heading = blocks.find((b) => b.type === "heading" && b.id === chapter.id) as Heading | undefined;
           const children = list.filter((s) => s.level === 2 && pageOf.get(s.id) === chapter.id);
+          const number = heading?.number ?? "";
+          const title = heading?.title ?? chapter.label;
           return {
             ...chapter,
-            number: heading?.number ?? "",
-            title: heading?.title ?? chapter.label,
+            name: number ? `${number}. ${title}` : title,
             children,
             summary: children.map((child) => child.label.replace(/^[\d.]+\s*/, "")).join(" · "),
           };
@@ -197,42 +211,29 @@ function ManualViewer({ data, onEdit }: { data: ManualData; onEdit?: () => void 
   );
   const nav = (
     <nav aria-label="매뉴얼 목차">
-      <ol className="manual-nav">
-        <li className={page ? undefined : "active"}>
+      <ol className="mnl-nav">
+        <li>
           <a
             href="#manual"
-            className="manual-nav-chapter"
+            className="mnl-nav-chapter"
             onClick={(event) => {
               event.preventDefault();
               event.currentTarget.closest("details")?.removeAttribute("open");
               goHome();
             }}
           >
-            <span className="manual-tile"><Icon name="home" /></span>
-            <span>매뉴얼 홈</span>
+            매뉴얼 홈
           </a>
         </li>
         {chapters.map((chapter) => (
-          <li key={chapter.id} className={page?.id === chapter.id ? "active" : undefined}>
-            {link(
-              chapter.id,
-              "manual-nav-chapter",
-              <>
-                <span className="manual-tile"><Icon name={chapterIcon(chapter.number)} /></span>
-                <span>{chapter.title}</span>
-                <Stars count={chapter.stars} />
-              </>,
-            )}
-            {chapter.children.length > 0 && (
-              <div className="manual-nav-sub">
-                <ol>
-                  {chapter.children.map((child) => (
-                    <li key={child.id}>
-                      {link(child.id, current === child.id ? "active" : "", <span>{child.label}</span>)}
-                    </li>
-                  ))}
-                </ol>
-              </div>
+          <li key={chapter.id} className={page?.id === chapter.id ? "is-active" : undefined}>
+            {link(chapter.id, "mnl-nav-chapter", chapter.name)}
+            {page?.id === chapter.id && chapter.children.length > 0 && (
+              <ol className="mnl-nav-sub">
+                {chapter.children.map((child) => (
+                  <li key={child.id}>{link(child.id, "", child.label)}</li>
+                ))}
+              </ol>
             )}
           </li>
         ))}
@@ -240,17 +241,35 @@ function ManualViewer({ data, onEdit }: { data: ManualData; onEdit?: () => void 
     </nav>
   );
 
+  const editButton = onEdit && (
+    <button type="button" className="btn small weak" onClick={onEdit}>
+      매뉴얼 편집
+    </button>
+  );
+  const top = (
+    <PageTop
+      upper={updatedLine(data.updated_at, data.updated_by)}
+      title="연속간행물실 근로 매뉴얼"
+      lower="업무 순서와 이용자 응대 방법을 장별로 정리했어요"
+      actions={editButton}
+    />
+  );
   if (!data.content.trim())
     return (
-      <div className="card manual-empty">
-        <Icon name="book" />
-        <h2>아직 등록된 매뉴얼이 없습니다</h2>
-        {onEdit ? (
-          <button className="btn primary" onClick={onEdit}>매뉴얼 작성하기</button>
-        ) : (
-          <p className="hint">관리자가 매뉴얼을 올리면 여기에서 볼 수 있어요.</p>
-        )}
-      </div>
+      <>
+        {top}
+        <Card className="mnl-empty">
+          <Icon name="book" />
+          <p>아직 등록된 매뉴얼이 없어요</p>
+          {onEdit ? (
+            <button type="button" className="btn primary" onClick={onEdit}>
+              매뉴얼 작성하기
+            </button>
+          ) : (
+            <p className="mnl-hint">관리자가 매뉴얼을 올리면 여기에서 볼 수 있어요.</p>
+          )}
+        </Card>
+      </>
     );
   const chips = shortcuts.filter(([, id]) => ids.has(id));
   const pick = (id: string) => {
@@ -258,104 +277,128 @@ function ManualViewer({ data, onEdit }: { data: ManualData; onEdit?: () => void 
     input.current?.blur();
     go(id);
   };
-  const currentChapter = chapters.find((chapter) => chapter.id === page?.id);
-  return (
-    <div className="manual-shell">
-      {mobile ? <Fold title="목차">{nav}</Fold> : <aside className="manual-side">{nav}</aside>}
-      <div className="manual-main">
-        <div className="manual-searchrow">
-        <div
-          className="manual-searchbox"
-          onBlur={(event) => {
-            if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setOpen(false);
+  const searchField = (
+    <div
+      className="mnl-searchbox"
+      onBlur={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setOpen(false);
+      }}
+    >
+      <label className="mnl-search">
+        <Icon name="search" />
+        <span className="sr-only">매뉴얼 검색</span>
+        <input
+          ref={input}
+          type="search"
+          value={query}
+          placeholder={mobile ? "무엇이 궁금한가요?" : "무엇이 궁금한가요? 예) 택배 반송"}
+          aria-keyshortcuts="/"
+          aria-expanded={open && words.length > 0}
+          aria-controls="manual-results"
+          enterKeyHint="search"
+          onFocus={() => setOpen(true)}
+          onChange={(event) => {
+            setQuery(event.target.value);
+            setOpen(true);
           }}
-        >
-          <label className="manual-search">
-            <Icon name="search" />
-            <span className="sr-only">매뉴얼 검색</span>
-            <input
-              ref={input}
-              type="search"
-              value={query}
-              placeholder="매뉴얼에서 찾기 (예: 택배 반송)"
-              aria-keyshortcuts="/"
-              aria-expanded={open && words.length > 0}
-              aria-controls="manual-results"
-              enterKeyHint="search"
-              onFocus={() => setOpen(true)}
-              onChange={(event) => {
-                setQuery(event.target.value);
-                setOpen(true);
-              }}
-              onKeyDown={(event) => {
-                if (event.key === "Escape") {
-                  event.preventDefault();
-                  if (open && query) setOpen(false);
-                  else if (query) setQuery("");
-                  else event.currentTarget.blur();
-                }
-                if (event.key === "Enter" && results[0]) pick(results[0].section.id);
-              }}
-            />
-            {!query && <kbd aria-hidden="true">/</kbd>}
-          </label>
-          {open && words.length > 0 && (
-            <div className="manual-results" id="manual-results" role="region" aria-label="검색 결과">
-              {results.length ? (
-                <ul>
-                  {results.map(({ section, snippet }) => (
-                    <li key={section.id}>
-                      <button type="button" onClick={() => pick(section.id)}>
-                        <span className="manual-result-path"><Marked text={section.path} words={words} /></span>
-                        {snippet && (
-                          <span className="manual-result-snippet"><Marked text={snippet} words={words} /></span>
-                        )}
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="manual-results-empty">일치하는 내용이 없어요. 다른 단어로 찾아보세요.</p>
-              )}
-            </div>
+          onKeyDown={(event) => {
+            if (event.key === "Escape") {
+              event.preventDefault();
+              if (open && query) setOpen(false);
+              else if (query) setQuery("");
+              else event.currentTarget.blur();
+            }
+            if (event.key === "Enter" && results[0]) pick(results[0].section.id);
+          }}
+        />
+        {!query && <kbd aria-hidden="true">/</kbd>}
+      </label>
+      {open && words.length > 0 && (
+        <div className="mnl-results" id="manual-results" role="region" aria-label="검색 결과">
+          {results.length ? (
+            <ul>
+              {results.map(({ section, snippet }) => (
+                <li key={section.id}>
+                  <button type="button" onClick={() => pick(section.id)}>
+                    <span className="mnl-result-path">
+                      <Marked text={section.path} words={words} />
+                    </span>
+                    {snippet && (
+                      <span className="mnl-result-snippet">
+                        <Marked text={snippet} words={words} />
+                      </span>
+                    )}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="mnl-results-empty">일치하는 내용이 없어요. 다른 단어로 찾아보세요.</p>
           )}
         </div>
-        {onEdit && (
-          <button type="button" className="btn manual-edit" onClick={onEdit}>매뉴얼 편집</button>
-        )}
-        </div>
-        {!page ? (
-          <div className="manual-home">
-            <p className="manual-crumb">매뉴얼</p>
-            <h1>연속간행물실 근로 매뉴얼</h1>
-            <p className="manual-lead">업무 순서와 이용자 응대 방법을 장별로 정리했어요.</p>
-            {chips.length > 0 && (
-              <div className="manual-chips" role="group" aria-label="상황별 바로가기">
+      )}
+    </div>
+  );
+
+  if (!page)
+    return (
+      <>
+        {top}
+        <Card className="mnl-find" label="찾기">
+          {searchField}
+          {chips.length > 0 && (
+            <>
+              <ListHeader title="상황별 바로가기" />
+              <div className="tds-chips mnl-chips" role="group" aria-label="상황별 바로가기">
                 {chips.map(([label, id]) => (
                   <button key={id} type="button" onClick={() => go(id)}>
                     {label}
                   </button>
                 ))}
               </div>
-            )}
-            <ul className="manual-cards">
-              {chapters.map((chapter) => (
-                <li key={chapter.id}>
-                  <button type="button" className="manual-card" onClick={() => go(chapter.id)}>
-                    <Icon name={chapterIcon(chapter.number)} />
-                    <strong>
-                      {chapter.title}
-                      <Stars count={chapter.stars} />
-                    </strong>
-                    <span>{chapter.summary}</span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </div>
-        ) : (
-          <article className="card manual-doc">
-            <nav className="manual-crumb" aria-label="현재 위치">
+            </>
+          )}
+        </Card>
+        <Card className="mnl-toc" label="목차">
+          <ListHeader title="목차" />
+          <ul className="mnl-chapters">
+            {chapters.map((chapter) => (
+              <li key={chapter.id}>
+                <ListRow
+                  icon={mobile ? undefined : "book"}
+                  title={chapter.name}
+                  sub={chapter.summary || undefined}
+                  onClick={() => go(chapter.id)}
+                  right={chapter.stars >= 3 ? <Badge color="yellow">꼭 읽기</Badge> : <Chevron />}
+                />
+              </li>
+            ))}
+          </ul>
+        </Card>
+      </>
+    );
+
+  const currentChapter = chapters.find((chapter) => chapter.id === page.id);
+  return (
+    <div className="mnl-read">
+      <h1 className="sr-only">연속간행물실 근로 매뉴얼</h1>
+      {!mobile && <aside className="tds-card mnl-side">{nav}</aside>}
+      <div className="mnl-main">
+        <Card className="mnl-find is-compact" label="찾기">
+          {searchField}
+        </Card>
+        {mobile && (
+          <details className="tds-card mnl-fold">
+            <summary>
+              <span>목차</span>
+              <span className="mnl-fold-current">{currentChapter?.name}</span>
+            </summary>
+            {nav}
+          </details>
+        )}
+        <article className="tds-card mnl-doc">
+          <div className="mnl-doc-top">
+            <nav className="mnl-crumb" aria-label="현재 위치">
               <a
                 href="#manual"
                 onClick={(event) => {
@@ -366,42 +409,27 @@ function ManualViewer({ data, onEdit }: { data: ManualData; onEdit?: () => void 
                 매뉴얼
               </a>
               <Icon name="chevron" />
-              <span>{currentChapter?.title}</span>
+              <span>{currentChapter?.name}</span>
             </nav>
-            <ManualDocument blocks={page.blocks} words={words} onCopy={copy} />
-            <nav className="manual-pager" aria-label="장 이동">
-              {[pages[pageIndex - 1], pages[pageIndex + 1]].map((target, side) =>
-                target ? (
-                  <button key={side} type="button" className="btn" onClick={() => go(target.id)}>
-                    {side ? "" : "← "}
-                    {chapters.find((chapter) => chapter.id === target.id)?.title ?? "이전"}
-                    {side ? " →" : ""}
-                  </button>
-                ) : (
-                  <span key={side} />
-                ),
-              )}
-            </nav>
-          </article>
-        )}
+            {editButton}
+          </div>
+          <ManualDocument blocks={page.blocks} words={words} onCopy={copy} />
+          <nav className="mnl-pager" aria-label="장 이동">
+            {[pages[pageIndex - 1], pages[pageIndex + 1]].map((target, side) =>
+              target ? (
+                <button key={side} type="button" className={side ? "is-next" : undefined} onClick={() => go(target.id)}>
+                  <small>{side ? "다음 장" : "이전 장"}</small>
+                  <strong>{chapters.find((chapter) => chapter.id === target.id)?.name ?? "처음"}</strong>
+                </button>
+              ) : (
+                <span key={side} />
+              ),
+            )}
+          </nav>
+        </article>
       </div>
     </div>
   );
-}
-
-const chapterIcons: Record<string, keyof typeof icons> = {
-  "1": "people",
-  "2": "sun",
-  "3": "moon",
-  "4": "archive",
-  "5": "swap",
-  "6": "grid",
-  "7": "message",
-  "8": "phone",
-  "9": "more",
-};
-function chapterIcon(number: string) {
-  return chapterIcons[number] ?? "book";
 }
 
 function Stars({ count }: { count: number }) {
@@ -477,7 +505,7 @@ export function ManualDocument({
             {onCopy && block.level < 3 && (
               <button
                 type="button"
-                className="manual-copy"
+                className="mnl-copy"
                 aria-label={`${[block.number, block.title].filter(Boolean).join(" ")} 링크 복사`}
                 title="링크 복사"
                 onClick={() => onCopy(block.id)}
@@ -500,7 +528,7 @@ export function ManualDocument({
         );
       case "table":
         return (
-          <div key={index} className="manual-table">
+          <div key={index} className="mnl-table">
             <table>
               <thead>
                 <tr>{block.head.map((cell, c) => <th key={c} scope="col"><Inline text={cell} words={words} /></th>)}</tr>
@@ -516,7 +544,6 @@ export function ManualDocument({
     }
   });
 }
-
 
 const imageTypes = "image/png,image/jpeg,image/gif,image/webp";
 function ManualEditor({
@@ -566,72 +593,72 @@ function ManualEditor({
     );
   }
   return (
-    <section className="card manual-editor" aria-label="매뉴얼 편집">
-      <div className="card-head">
-        <h2>매뉴얼 편집</h2>
-        <div className="manual-editor-actions">
-          <input
-            ref={file}
-            type="file"
-            accept={imageTypes}
-            multiple
-            hidden
-            onChange={async (event) => {
-              const picked = [...(event.currentTarget.files ?? [])];
-              event.currentTarget.value = "";
-              if (!picked.length) return;
-              setUploading(true);
-              try {
-                await insertImages(picked);
-              } catch (error) {
-                notice(message(error));
-              } finally {
-                setUploading(false);
-              }
-            }}
-          />
-          <button type="button" className="btn small" disabled={uploading} onClick={() => file.current?.click()}>
-            <Icon name="plus" />
-            {uploading ? "올리는 중…" : "이미지 넣기"}
-          </button>
-          <button
-            type="button"
-            className="btn small"
-            onClick={() => {
-              if (text === initial || confirm("저장하지 않은 내용이 사라져요. 편집을 그만할까요?")) onClose();
-            }}
-          >
-            취소
-          </button>
-          <Action
-            className="btn small primary"
-            disabled={uploading}
-            run={async () => {
-              onSaved(await api<ManualData>("/manual", "PUT", { content: text }));
-              notice("매뉴얼을 저장했어요.");
-            }}
-          >
-            저장
-          </Action>
+    <>
+      <PageTop
+        title="매뉴얼 편집"
+        lower="왼쪽에 쓰면 오른쪽에서 바로 미리 볼 수 있어요"
+        actions={
+          <>
+            <input
+              ref={file}
+              type="file"
+              accept={imageTypes}
+              multiple
+              hidden
+              onChange={async (event) => {
+                const picked = [...(event.currentTarget.files ?? [])];
+                event.currentTarget.value = "";
+                if (!picked.length) return;
+                setUploading(true);
+                try {
+                  await insertImages(picked);
+                } catch (error) {
+                  notice(message(error));
+                } finally {
+                  setUploading(false);
+                }
+              }}
+            />
+            <button type="button" className="btn small" disabled={uploading} onClick={() => file.current?.click()}>
+              <Icon name="plus" />
+              {uploading ? "올리는 중…" : "이미지 넣기"}
+            </button>
+            <button
+              type="button"
+              className="btn small"
+              onClick={() => {
+                if (text === initial || confirm("저장하지 않은 내용이 사라져요. 편집을 그만할까요?")) onClose();
+              }}
+            >
+              취소
+            </button>
+            <Action
+              className="btn small primary"
+              disabled={uploading}
+              run={async () => {
+                onSaved(await api<ManualData>("/manual", "PUT", { content: text }));
+                notice("매뉴얼을 저장했어요.");
+              }}
+            >
+              저장
+            </Action>
+          </>
+        }
+      />
+      <Card className="mnl-editor" label="매뉴얼 원문과 미리보기">
+        <p className="mnl-hint mnl-syntax">
+          # 장 · ## 절 · ### 소제목 · 제목 끝 ★ = 중요도 · - 목록 · 1. 번호 목록 · &gt; 안내 · &gt; ⚠ 경고 · | 표 | · **굵게** · [링크](https://…)
+        </p>
+        <div className="mnl-editor-grid">
+          <label className="mnl-editor-source">
+            <span className="sr-only">매뉴얼 원문</span>
+            <textarea ref={area} value={text} spellCheck={false} onChange={(event) => setText(event.target.value)} />
+          </label>
+          <div className="mnl-doc mnl-preview" aria-label="미리보기">
+            <ManualDocument blocks={preview} />
+          </div>
         </div>
-      </div>
-      <p className="hint manual-syntax">
-        # 장 · ## 절 · ### 소제목 · 제목 끝 ★ = 중요도 · - 목록 · 1. 번호 목록 · &gt; 안내 · &gt; ⚠ 경고 · | 표 | · **굵게** · [링크](https://…)
-      </p>
-      <div className="manual-editor-grid">
-        <label className="manual-editor-source">
-          <span className="sr-only">매뉴얼 원문</span>
-          <textarea
-            ref={area}
-            value={text}
-            spellCheck={false}
-            onChange={(event) => setText(event.target.value)}
-          />
-        </label>
-        <div className="manual-doc manual-preview" aria-label="미리보기">
-          <ManualDocument blocks={preview} />
-        </div>
-      </div>
-    </section>
+      </Card>
+    </>
   );
 }

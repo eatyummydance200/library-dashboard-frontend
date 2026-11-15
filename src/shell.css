@@ -1,36 +1,150 @@
-/* 모바일-2 셸·홈 (899px 이하). 웹(900px 이상) 셸은 style.css의 .topbar 규칙. */
-:root{--tabbar:64px}
-.list-note{font-size:13px;color:var(--muted)}
-.list-card .issue-list{padding:6px}
+/* 앱 셸 (Figma 사이드 메뉴 55089:1580 · 전체 55086:644 · 로그인 55086:958)과
+   전역 대화상자·시트·토스트·드롭다운 모양. style.css의 옛 규칙을 덮어쓴다. 버튼·입력칸은 tds.css. */
+:root{--tabbar:58px}
+
+/* ---------- 셸: 데스크톱은 왼쪽 260px 사이드 메뉴 + 본문 ---------- */
+.shell{display:grid;grid-template-columns:260px minmax(0,1fr);min-height:100dvh}
+.shell-main{position:relative;min-width:0;width:100%;max-width:1480px;padding:40px 40px 64px 24px}
+
+.side{position:sticky;top:0;display:flex;flex-direction:column;gap:4px;height:100dvh;overflow:auto;padding:28px 16px}
+.side-brand{display:flex;flex-direction:column;gap:2px;padding:0 0 20px 12px;line-height:1.45}
+.side-brand span{font-size:13px;font-weight:500;color:var(--text-2)}
+.side-brand strong{font-size:17px;font-weight:700;color:var(--ink)}
+.side-row{display:flex;align-items:center;gap:12px;width:100%;min-height:var(--tap);padding:8px 20px;border-radius:14px;text-align:left;color:var(--ink)}
+.side-row.is-current{background:#fff}
+.side-icon{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;flex-shrink:0;border-radius:9px;background:#fff;color:var(--grey500)}
+.side-icon svg{width:20px;height:20px}
+.side-row.is-current .side-icon{color:var(--grey700)}
+.side-text{display:flex;flex-direction:column;flex:1;min-width:0;line-height:1.35}
+.side-label{font-size:17px;font-weight:700;overflow-wrap:anywhere}
+.side-sub{font-size:13px;color:var(--text-3)}
+.side-row.is-quiet .side-label{font-weight:500;color:var(--text-2)}
+.side-badge{min-width:22px;height:22px;padding:0 7px;border-radius:11px;background:var(--red600);color:#fff;font-size:12px;font-weight:700;line-height:22px;text-align:center}
+.side-header{padding:16px 24px 4px;font-size:13px;font-weight:500;color:var(--text-2)}
+.side-divider{width:100%;margin:16px 0 8px;border:0;border-top:1px solid var(--grey200)}
+.side-row:focus-visible{outline-offset:-3px}
+@media(hover:hover){.side-row:not(.is-current):hover{background:#ffffff8c}}
+
+/* ---------- 모바일: 하단 탭 5개 ---------- */
 @media(max-width:899px){
-  html{scroll-padding-top:64px}
-  .appbar{position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:12px;padding:10px 16px;background:#f2f5f9e8;backdrop-filter:saturate(1.4) blur(10px);border-bottom:1px solid #e2e8f0b0}
-  .appbar-logo{width:auto;height:30px;flex-shrink:0}
-  .appbar-title{flex:1;min-width:0}
-  .appbar-title h1{font-size:19px;line-height:1.3;font-weight:800;letter-spacing:-.6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .account-avatar{width:var(--tap);height:var(--tap)}
-  .tabbar{position:fixed;z-index:30;left:0;right:0;bottom:0;display:grid;grid-template-columns:repeat(6,minmax(0,1fr));padding:4px 6px var(--safe-bottom);background:#fffffff2;backdrop-filter:saturate(1.4) blur(12px);border-top:1px solid var(--line);box-shadow:0 -4px 18px #14284a0f}
-  .tabbar button{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-height:var(--tabbar);padding:4px 2px;color:#5d6f88;font-size:12px;font-weight:600}
-  .tab-icon{position:relative;display:flex;align-items:center;justify-content:center;width:56px;max-width:100%;height:30px;border-radius:999px;transition:background .15s}
-  .tab-icon svg{width:22px;height:22px}
-  .tab-icon .count-badge{position:absolute;top:-6px;right:-12px;margin:0}
-  .tab-label{white-space:nowrap}
-  .tabbar button.active{color:var(--brand);font-weight:750}
-  .tabbar button.active .tab-icon{background:var(--brand-bg)}
-  .tabbar button.active svg{stroke-width:2.2}
-  .main{padding:14px 16px calc(var(--tabbar) + 96px + var(--safe-bottom))}
-  .fab{position:fixed;z-index:25;right:16px;bottom:calc(var(--tabbar) + 16px + var(--safe-bottom));min-height:54px;padding:0 22px;border-radius:999px;font-size:16px;box-shadow:0 8px 24px #03499a4d}
-  .fab svg{width:20px;height:20px;stroke-width:2.4}
-  .toast{bottom:calc(var(--tabbar) + 20px + var(--safe-bottom))}
-  /* 홈: 지금 근무 카드 안에 이전·다음 한 줄씩 + 당직 한 줄 */
-  .shift-neighbors{grid-template-columns:1fr;gap:4px;border-radius:0}
-  .neighbor-line{display:flex;gap:8px;min-width:0;font-size:14px;color:#e5efff;overflow-wrap:anywhere}
-  .neighbor-line b{flex-shrink:0;color:#cfe1fb}
-  .neighbor-line time{flex-shrink:0;font-variant-numeric:tabular-nums}
-  .now-duty{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:12px 18px 14px;border-top:1px solid #ffffff26}
-  .now-duty p{flex:1;min-width:0;display:flex;gap:8px;font-size:15px}
-  .now-duty b{color:#cfe1fb}
-  .now-duty .text-btn{color:#fff}
-  .now-duty .resource-state{padding:0;color:#d5e4fa}
-  .now-duty .inline-error{flex-basis:100%;margin:0}
+  .shell{display:block}
+  .shell-main{padding:0 0 calc(var(--tabbar) + 24px + var(--safe-bottom))}
+  body[data-page=more]{background:#fff}
 }
+.shell-back{display:flex;align-items:center;justify-content:center;width:var(--tap);height:var(--tap);margin:8px 0 0 12px;border-radius:12px;color:var(--grey600)}
+.shell-back svg{width:22px;height:22px}
+.tabbar{position:fixed;z-index:30;left:0;right:0;bottom:0;display:flex;gap:6px;padding:6px 18px calc(4px + var(--safe-bottom));border:1px solid var(--grey200);border-bottom:0;border-radius:24px 24px 0 0;background:#fff}
+.tabbar button{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;min-width:46px;min-height:48px;padding:1px 4px;color:var(--grey600);font-size:11px;font-weight:500;line-height:1.2}
+.tabbar button.is-current{color:var(--ink);font-weight:600}
+.tab-icon{position:relative;display:flex}
+.tab-icon svg{width:24px;height:24px}
+.tab-dot{position:absolute;top:-1px;right:-4px;width:5px;height:5px;border-radius:50%;background:var(--red600)}
+.tab-label{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* ---------- 로그인 ---------- */
+body.login-page{background:#fff}
+.login{display:flex;flex-direction:column;width:100%;max-width:480px;min-height:100dvh;margin:0 auto}
+.login-top{padding:48px 24px 24px}
+.login-kicker{font-size:13px;line-height:1.5;color:var(--text-2)}
+.login-top h1{margin-top:4px;font-size:28px;line-height:37px;font-weight:700;letter-spacing:-.5px;color:var(--ink)}
+/* fieldset은 flex로 늘려도 안쪽이 따라 늘지 않아(Chrome) 상자를 없애고 form이 직접 배치한다 */
+.login-form{display:flex;flex-direction:column;flex:1}
+.login-form fieldset{display:contents}
+.login-field{display:flex;flex-direction:column;gap:6px;padding:16px 0}
+.login-label{padding:0 24px;font-size:13px;font-weight:500;line-height:1.35;color:var(--text-2)}
+.login-field>input,.login-box{min-height:54px;margin:0 20px;border:1px solid var(--grey200);border-radius:14px;background:var(--grey50);color:var(--ink);font-size:17px}
+.login-field>input{padding:0 16px}
+.login-box{display:flex;align-items:center;padding:0 4px 0 16px}
+.login-box input{flex:1;min-width:0;min-height:52px;padding:0;border:0;background:none;outline:none}
+.login-field input::placeholder{color:var(--grey500)}
+.login-field>input:focus,.login-box:focus-within{outline:none;border-color:var(--blue500)}
+.login-eye{display:flex;align-items:center;justify-content:center;width:var(--tap);height:var(--tap);border-radius:12px;color:var(--grey400)}
+.login-field.is-error .login-label,.login-error{color:var(--red600)}
+.login-field.is-error .login-box{background:linear-gradient(#ef222f0d,#ef222f0d),var(--grey50)}
+.login-error{padding:0 24px;font-size:13px;line-height:1.5}
+.login-bottom{margin-top:auto;padding:36px 20px calc(20px + var(--safe-bottom))}
+.login-note{padding:24px 4px 0;font-size:15px;font-weight:500;line-height:1.5;color:var(--text-3);text-align:center}
+@media(min-width:900px){
+  .login{justify-content:center}
+  .login-form{flex:0 0 auto}
+  .login-bottom{margin-top:8px}
+}
+
+/* ---------- 토스트 ---------- */
+.toast{bottom:28px;padding:14px 20px;border-radius:16px;background:var(--grey800);font-size:15px;font-weight:500;box-shadow:none}
+@media(max-width:899px){.toast{bottom:calc(var(--tabbar) + 16px + var(--safe-bottom))}.login-page .toast{bottom:calc(24px + var(--safe-bottom))}}
+
+/* ---------- 대화상자: 모바일은 아래에서 올라오는 시트, 데스크톱은 가운데 ---------- */
+.dialog{padding:8px 24px calc(24px + var(--safe-bottom));border-radius:24px 24px 0 0;box-shadow:none}
+.dialog::before{width:36px;height:4px;margin-bottom:16px;background:var(--grey200)}
+.dialog::backdrop{background:#00000052}
+.dialog-head{margin-bottom:4px}
+.dialog-head h2{font-size:20px;line-height:1.4;font-weight:700;color:var(--ink)}
+.dialog-head button{border-radius:50%;color:var(--grey500)}
+.field{gap:6px;margin:16px 0;font-size:13px;font-weight:500;color:var(--text-2)}
+.hint{font-size:13px;line-height:1.5;color:var(--text-3)}
+.choice-chips legend{margin-bottom:6px}
+.choice-chips label{min-height:var(--tap);padding:0 16px;border:0;border-radius:999px;background:var(--grey100);color:var(--grey700);font-size:15px;font-weight:600}
+.choice-chips label:has(:checked){background:var(--blue50);color:var(--blue700)}
+.form-actions{bottom:calc(-24px - var(--safe-bottom));margin:24px -24px 0;padding:12px 24px calc(12px + var(--safe-bottom));border-top:0}
+.form-actions .btn{flex:1;min-height:52px;border-radius:14px;font-size:16px}
+.account-summary{gap:14px;padding:8px 0}
+.account-summary .side-icon{width:44px;height:44px;border-radius:50%;background:var(--grey100)}
+.account-summary strong{font-size:17px;font-weight:700}
+.account-summary span{font-size:14px;color:var(--text-3)}
+@media(min-width:900px){
+  .dialog{width:min(460px,calc(100% - 32px));padding:24px 28px 28px;border-radius:24px}
+  .form-actions{position:static;margin:24px 0 0;padding:0}
+}
+
+/* ---------- 드롭다운 (관리 메뉴, ⋯ 메뉴) ---------- */
+.menu-list{padding:6px;border:1px solid var(--grey200);border-radius:16px;box-shadow:none}
+.menu-list>button{border-radius:10px;color:var(--ink);font-weight:500}
+.menu-list>button:not(:disabled):hover{background:var(--grey100);color:var(--ink)}
+.menu-list .danger{color:var(--red600)}
+.menu-list hr{border-top-color:var(--grey200)}
+.menu-hint{color:var(--text-3)}
+.admin-menu>summary{gap:2px;padding:0 10px 0 14px;border:0;background:var(--grey100);color:var(--grey700);font-weight:600}
+.admin-menu[open]>summary{background:var(--blue50);color:var(--blue700)}
+@media(hover:hover){.admin-menu>summary:hover{background:var(--grey200)}}
+
+/* ---------- 개발자 문의: 오른쪽 아래 상담 버튼 + 채팅 모양 창 ---------- */
+.inquiry-fab{position:fixed;z-index:35;right:24px;bottom:24px;display:grid;place-items:center;width:56px;height:56px;border-radius:50%;background:var(--blue500);color:#fff;box-shadow:0 6px 16px #3182f640}
+.inquiry-fab svg{width:26px;height:26px}
+.chat-msg{display:flex;gap:10px;margin:8px 0 16px}
+.chat-avatar{flex-shrink:0;width:40px;height:40px;border-radius:50%;background:var(--blue50);object-fit:contain}
+.chat-msg small{display:block;margin-bottom:4px;font-size:13px;color:var(--text-3)}
+.chat-bubble{display:inline-block;padding:12px 16px;border-radius:4px 18px 18px 18px;background:var(--grey100);font-size:15px;line-height:1.5;color:var(--ink)}
+.chat-log{display:flex;flex-direction:column;min-height:min(420px,50dvh)}
+.chat-bubble.is-mine{align-self:flex-end;max-width:80%;margin:0 0 16px;border-radius:18px 4px 18px 18px;background:var(--blue500);color:#fff;overflow-wrap:anywhere}
+.chat-write{width:100%;min-height:52px;font-size:16px}
+@media(hover:hover){.inquiry-fab:hover{background:var(--blue600)}}
+@media(max-width:899px){.inquiry-fab{right:16px;bottom:calc(var(--tabbar) + 16px + var(--safe-bottom));width:52px;height:52px}}
+@media(min-width:900px){
+  /* 화면 가운데가 아니라 버튼 자리 위로 뜬다 */
+  .dialog.inquiry-chat{width:400px;margin:auto 24px 24px auto;max-height:calc(100dvh - 48px)}
+  .dialog.inquiry-chat::backdrop{background:#0000001f}
+}
+
+/* ---------- 모션: 알림은 아래에서 올라오고, 대화상자는 살짝 커지며(모바일은 아래에서) 나타난다 ---------- */
+.toast{animation:toast-in .25s cubic-bezier(.2,.8,.2,1)}
+@keyframes toast-in{from{opacity:0;transform:translate(-50%,12px)}}
+.dialog[open]{animation:dialog-in .22s cubic-bezier(.2,.8,.2,1)}
+@keyframes dialog-in{from{opacity:0;transform:translateY(24px)}}
+@media(min-width:900px){@keyframes dialog-in{from{opacity:0;transform:scale(.96)}}}
+
+/* ---------- 모션(토스풍, 절제): 화면은 살짝 떠오르며 나타나고, 누르면 조금 눌리고, 상태 색은 부드럽게 바뀐다.
+   움직임 줄이기 설정은 style.css 맨 끝에서 한꺼번에 끈다. ---------- */
+:root{--ease:cubic-bezier(.2,.8,.2,1)}
+.view{animation:view-in .28s var(--ease)}
+@keyframes view-in{from{opacity:0;transform:translateY(8px)}}
+.side-row,.tabbar button,.icon-btn,.inquiry-fab,button.list-row-main,.tds-segmented button,.tds-tabs button,.issue-kind,.menu-list>button{transition:transform .15s var(--ease),background-color .2s,color .2s,box-shadow .2s}
+.side-row:active,button.list-row-main:active,.issue-kind:active{transform:scale(.98)}
+.tabbar button:active,.icon-btn:active,.inquiry-fab:active,.tds-segmented button:active{transform:scale(.94)}
+.tds-check{transition:background-color .2s}
+.tds-check:checked{animation:check-in .25s var(--ease)}
+@keyframes check-in{from{transform:scale(.8)}}
+details[open]>.menu-list{animation:menu-in .16s var(--ease)}
+@keyframes menu-in{from{opacity:0;transform:translateY(-4px)}}
+.dialog[open]::backdrop{animation:fade-in .2s ease-out}
+@keyframes fade-in{from{opacity:0}}

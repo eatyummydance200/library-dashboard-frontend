@@ -1,18 +1,72 @@
-/* 시간표 모바일(899px 이하): DayStrip + 하루 한 열 블록(.day-board). 블록 모양·계산은 웹 주간표(style.css "시간표")와 같다. */
-.day-strip{display:flex;flex-direction:column;align-items:center;gap:2px}
-.day-strip-row{display:flex;align-items:center;gap:4px;width:100%}
-.day-strip-row>.icon-btn{width:36px}
-.day-strip .day-picker{flex:1;padding:0}
-.day-strip .today-jump{font-size:13px}
-.day-legend{padding:12px 14px 8px}
-/* 하루 한 열: 가로 스크롤 없이 폭을 채우고, 터치하기 좋게 칸을 키운다 */
-.week-board.day-board{--slot-height:40px;grid-template-columns:52px minmax(0,1fr);min-width:0}
-.day-board .worker strong{font-size:15px}
-.day-board .worker-time{font-size:12px}
-/* 내 근무: 네 변을 브랜드색 고리로 한 번 더 감싼다 */
-.worker.mine{box-shadow:0 0 0 2px var(--brand)}
-/* 드래그 손잡이: 손가락으로 잡을 수 있게 크게(보이는 막대는 그리지 않는다) */
-.day-board .resize-handle{height:18px}
-.day-board .short-shift .resize-handle{height:12px}
-.schedule-actions{display:flex;gap:8px;flex-wrap:wrap;padding:0 14px 12px}
-.schedule-copy-card .day-picker{padding:0 14px 10px}
+/* 시간표 (Figma 모바일 55084:255 · 데스크톱 55090:1980, 근무 블록 55090:1977).
+   카드·행·배지·Segmented는 tds.css. 옛 style.css의 .week-board/.worker 규칙은 쓰지 않는다. */
+
+/* ---------- 공통 ---------- */
+.sch-card{padding-bottom:12px}
+.sch-empty-note{margin:0;padding:16px 24px;font-size:15px;color:var(--text-3)}
+.sch-adjusted{display:inline-flex;margin-left:6px;vertical-align:2px}
+.sch-total{font-size:17px;font-weight:700;color:var(--ink);font-variant-numeric:tabular-nums}
+
+/* ---------- 데스크톱 머리: 주 이동 · 범례 · 근무자 강조 ---------- */
+.sch-head{display:flex;align-items:center;flex-wrap:wrap;gap:12px 16px;padding:20px 24px 8px}
+.sch-week{display:flex;align-items:center;gap:4px}
+.sch-title{font-size:20px;font-weight:700;color:var(--ink)}
+.sch-range{margin:0 4px 0 6px;font-size:14px;color:var(--text-3);font-variant-numeric:tabular-nums}
+.sch-nav{display:inline-flex;align-items:center;justify-content:center;width:var(--tap);height:var(--tap);padding:0;border:0;border-radius:50%;background:none;color:var(--grey600)}
+.sch-nav svg{width:20px;height:20px}
+.sch-today{min-height:var(--tap);padding:0 8px;border:0;background:none;font-size:14px;font-weight:600}
+.sch-legend{display:flex;gap:6px;margin-left:auto}
+.sch-person .menu-list{min-width:180px;max-height:60vh;overflow-y:auto}
+.sch-person .check-row{padding:0 10px 0 14px;font-size:15px}
+@media(hover:hover){.sch-nav:hover{background:var(--grey100)}}
+
+/* ---------- 5요일 격자 ---------- */
+.sch-scroll{overflow-x:auto;padding:0 24px 12px}
+.sch-board{--slot:25px;display:grid;grid-template-columns:44px repeat(5,minmax(0,1fr));gap:0 12px;min-width:760px;font-variant-numeric:tabular-nums}
+/* 모바일: 고른 요일 하루만 같은 블록 표로 (요일 머리는 위 요일 칩이 대신한다) */
+.sch-board.is-single{grid-template-columns:40px minmax(0,1fr);min-width:0;padding:4px 20px 16px}
+.sch-day-panel>.sch-legend{justify-content:flex-end;margin:0;padding:12px 20px 8px}
+.sch-board.is-single .sch-day-head{display:none}
+.sch-day,.sch-axis{min-width:0}
+.sch-day-head{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;height:60px;margin:0;font-size:17px;font-weight:700;color:var(--ink)}
+.sch-day-head small{font-size:13px;font-weight:500;color:var(--text-3)}
+.sch-date{display:inline-flex;align-items:center;justify-content:center;min-width:30px;height:30px;border-radius:50%}
+.sch-day.is-today .sch-day-head small{color:var(--blue600)}
+.sch-day.is-today .sch-date{background:var(--blue500);color:#fff}
+.sch-axis-ticks{position:relative;height:calc(var(--slot) * 26)}
+.sch-axis-ticks span{position:absolute;right:0;transform:translateY(-50%);font-size:12px;color:var(--text-3)}
+.sch-axis-ticks span:first-child{transform:none}
+.sch-axis-ticks span:last-child{transform:translateY(-100%)}
+.sch-track{position:relative;display:grid;grid-template-columns:repeat(var(--lanes),minmax(0,1fr));grid-template-rows:repeat(26,var(--slot));column-gap:4px;padding:0 4px;border-radius:12px;background:var(--grey50)}
+.sch-track.can-add{cursor:copy}
+.sch-empty{position:absolute;top:40%;left:0;right:0;text-align:center;font-size:14px;color:var(--text-3)}
+.sch-now{position:absolute;left:-6px;right:-6px;z-index:4;border-top:2px solid var(--blue500);pointer-events:none}
+
+/* 근무 블록: 데스크 blue50 · 대기 orange50 · 확정표와 다름 빨강 점선 */
+.sch-block{position:relative;z-index:1;display:flex;flex-direction:column;align-items:flex-start;gap:2px;min-width:0;margin:2px 0;padding:6px 8px;border:0;border-radius:8px;background:var(--orange50);color:var(--ink);text-align:left;line-height:1.3;overflow:hidden;cursor:default}
+.sch-block.is-desk{background:var(--blue50)}
+.sch-block strong{max-width:100%;font-size:13px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sch-block small{max-width:100%;font-size:12px;color:var(--text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sch-block.is-short{justify-content:center;padding:0 8px}
+.sch-block.is-changed{outline:1.5px dashed var(--red600);outline-offset:-1.5px}
+.sch-block.is-dim{opacity:.25}
+.sch-block.is-editable{cursor:pointer}
+.sch-block.is-movable{cursor:grab;user-select:none;-webkit-user-select:none}
+.sch-block.is-dragging{z-index:6;cursor:grabbing;box-shadow:0 4px 12px #00000024}
+/* 추가·수정·이동 직후: 파란 테두리가 잠깐 보였다 사라진다 */
+.sch-block.is-flash{animation:sch-flash .5s ease-out}
+@keyframes sch-flash{from{box-shadow:0 0 0 2px var(--blue500)}to{box-shadow:0 0 0 2px #3182f600}}
+.sch-block:focus-visible{z-index:5;outline:2px solid var(--blue500);outline-offset:0}
+.sch-handle{position:absolute;left:0;right:0;z-index:2;height:10px;cursor:ns-resize;touch-action:none}
+.sch-handle.start{top:0}
+.sch-handle.end{bottom:0}
+@media(pointer:coarse){.sch-handle{height:16px}}
+@media(hover:hover){.sch-block.is-editable:hover{filter:brightness(.97)}}
+
+@media(max-width:899px){
+  body[data-page=schedule]{background:#fff}
+  .schedule-workspace.view{gap:0}
+  .schedule-workspace .tds-card{border-radius:0}
+  .schedule-workspace .tds-card+.tds-card{border-top:12px solid var(--canvas)}
+  .sch-empty-note{padding:16px 20px}
+}

@@ -1,0 +1,118 @@
+/* TDS(토스 디자인 시스템) 모양 공통 부품. tds.tsx와 짝. 전역 버튼·입력칸도 여기서 TDS 모양으로 덮어쓴다.
+   색은 style.css :root 토큰만 쓴다. 그림자 없이 면 색으로만 구분한다. */
+
+/* ---------- 버튼 (높이/라운드: S 38/10 · M 44/12 · L 48/14 · XL 56/16) ---------- */
+.btn{border:0;border-radius:12px;background:var(--grey100);color:var(--grey700);font-weight:600;transition:transform .1s}
+.btn.primary{background:var(--brand);color:#fff}
+.btn.weak{background:var(--blue50);color:var(--blue700)}
+.btn.danger{background:var(--red50);color:var(--red600);border:0}
+.btn.small{min-height:38px;border-radius:10px;font-size:14px}
+.btn.large{min-height:48px;padding:0 20px;border-radius:14px;font-size:16px}
+.btn.xlarge{min-height:56px;padding:0 20px;border-radius:16px;font-size:17px;width:100%}
+.btn:active:not(:disabled){transform:scale(.96)}
+.btn:focus-visible,.text-btn:focus-visible,.icon-btn:focus-visible{outline:none;box-shadow:0 0 0 1px #8ac0ff,0 0 0 3px #b8d9ff}
+.icon-btn{border:0;background:var(--grey100);color:var(--grey700);border-radius:50%}
+.text-btn{color:var(--brand)}
+@media(hover:hover){
+  .btn:hover{background:var(--grey200);border-color:transparent}
+  .btn.primary:hover{background:var(--blue700)}
+  .btn.weak:hover{background:var(--blue100)}
+  .icon-btn:hover{background:var(--grey200)}
+}
+
+/* ---------- 입력칸 (Text Field Box: 회색 면, 라운드 14) ---------- */
+.field input:not([type=checkbox]):not([type=radio]),.field select,.field textarea{min-height:52px;padding:12px 16px;border:0;border-radius:14px;background:var(--grey100);color:var(--ink);font-size:16px}
+.field textarea{min-height:96px}
+.field input:focus,.field select:focus,.field textarea:focus{outline:none;background:#fff;box-shadow:inset 0 0 0 2px var(--blue500)}
+
+/* ---------- Top ---------- */
+.page-top{display:flex;align-items:flex-end;justify-content:space-between;gap:12px 16px;flex-wrap:wrap;padding:20px 24px 16px}
+.page-top-text{display:flex;flex-direction:column;gap:4px;min-width:0}
+.page-top-upper{font-size:15px;color:var(--text-3)}
+.page-top-title{margin:0;font-size:26px;line-height:1.35;font-weight:700;letter-spacing:-.5px;color:var(--ink);white-space:pre-line}
+.page-top-lower{font-size:16px;color:var(--text-2)}
+.page-top-lower.is-brand{color:var(--brand);font-weight:600}
+.page-top-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+/* 관리 메뉴 자리(ui.tsx AdminOutlet). 비어 있으면 자리를 차지하지 않는다 */
+.page-top-admin:empty,.page-top-actions:has(>.page-top-admin:empty:only-child){display:none}
+@media(max-width:899px){.page-top-admin{order:1}}
+@media(min-width:900px){
+  .page-top{padding:8px 16px 20px}
+  .page-top-title{font-size:30px}
+  /* 회색 바탕 위에서는 한 단계 진한 면 */
+  .page-top .tds-segmented,.page-top .admin-menu:not([open])>summary{background:var(--grey200)}
+}
+
+/* ---------- Card ---------- */
+.tds-card{background:#fff;border-radius:var(--radius);min-width:0;overflow:hidden}
+
+/* ---------- List Header ---------- */
+.list-header{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:20px 24px 8px}
+.list-header h2,.list-header h3{margin:0;font-size:17px;line-height:1.45;font-weight:700;color:var(--ink)}
+.list-header.size-m h2,.list-header.size-m h3{font-size:20px}
+.list-header-tail{display:flex;align-items:center;gap:6px;font-size:14px;color:var(--text-3)}
+
+/* ---------- List Row ---------- */
+.list-row{display:flex;align-items:center;gap:12px;min-height:64px;padding:8px 24px}
+.list-row-main{display:flex;align-items:center;gap:14px;flex:1;min-width:0;padding:4px 0;border:0;background:none;text-align:left;color:inherit;font:inherit}
+button.list-row-main{cursor:pointer;border-radius:12px}
+.list-row-icon{display:flex;align-items:center;justify-content:center;width:40px;height:40px;flex-shrink:0;border-radius:14px;background:var(--grey100);color:var(--grey600)}
+.list-row-icon svg{width:22px;height:22px}
+.list-row-icon.tone-blue{background:var(--blue50);color:var(--blue600)}
+.list-row-icon.tone-orange{background:var(--orange50);color:#c25e00}
+.list-row-icon.tone-green{background:var(--green50);color:var(--green700)}
+.list-row-icon.tone-purple{background:var(--purple50);color:var(--purple700)}
+.list-row-icon.tone-teal{background:var(--teal50);color:var(--teal900)}
+.list-row-text{display:flex;flex-direction:column;gap:2px;min-width:0}
+.list-row-title{font-size:17px;line-height:1.45;font-weight:600;color:var(--ink);overflow-wrap:anywhere}
+.list-row-sub{font-size:14px;line-height:1.45;color:var(--text-3);overflow-wrap:anywhere}
+.list-row-right{display:flex;align-items:center;gap:8px;flex-shrink:0;color:var(--text-2);font-size:15px}
+.list-row.is-muted .list-row-main{opacity:.5}
+.tds-chevron{display:inline-flex;color:var(--grey400)}
+.tds-chevron svg{width:18px;height:18px}
+@media(hover:hover){button.list-row-main:hover{background:var(--grey50)}}
+@media(max-width:899px){.list-row{padding:6px 20px}.list-row-title{font-size:16px}.list-row-sub{font-size:13px}}
+
+/* ---------- Badge ---------- */
+.tds-badge{display:inline-flex;align-items:center;height:24px;padding:0 8px;border-radius:8px;font-size:13px;font-weight:600;white-space:nowrap;background:var(--blue50);color:var(--blue700)}
+.tds-badge.c-grey{background:var(--grey100);color:var(--grey700)}
+.tds-badge.c-red{background:var(--red50);color:var(--red600)}
+.tds-badge.c-yellow{background:var(--orange50);color:var(--grey800)}
+.tds-badge.c-green{background:var(--green50);color:var(--green700)}
+.tds-badge.c-teal{background:var(--teal50);color:var(--teal900)}
+.tds-badge.c-purple{background:var(--purple50);color:var(--purple700)}
+.tds-badge.is-fill{background:var(--blue600);color:#fff}
+.tds-badge.is-fill.c-red{background:var(--red600)}
+.tds-badge.is-fill.c-yellow{background:var(--orange400);color:var(--grey900)}
+.tds-badge.is-fill.c-green{background:var(--green700)}
+
+/* ---------- Tab (밑줄) ---------- */
+.tds-tabs{display:flex;border-bottom:1px solid var(--grey200);padding:0 12px}
+.tds-tabs.is-fluid{overflow-x:auto;scrollbar-width:none}
+.tds-tabs.is-fluid::-webkit-scrollbar{display:none}
+.tds-tabs button{flex:1;min-height:48px;padding:0 12px;border:0;background:none;color:var(--text-3);font-size:17px;font-weight:600;white-space:nowrap;box-shadow:inset 0 -2px 0 transparent}
+.tds-tabs.is-fluid button{flex:0 0 auto}
+.tds-tabs button[aria-selected=true]{color:var(--ink);font-weight:700;box-shadow:inset 0 -2px 0 var(--ink)}
+
+/* ---------- Chip ---------- */
+.tds-chips{display:flex;flex-wrap:wrap;gap:8px}
+.tds-chips button{min-height:36px;padding:0 14px;border:0;border-radius:999px;background:var(--grey100);color:var(--grey700);font-size:14px;font-weight:600}
+.tds-chips button[aria-pressed=true]{background:var(--blue50);color:var(--blue700)}
+
+/* ---------- Segmented Control ---------- */
+.tds-segmented{display:flex;gap:4px;padding:4px;border-radius:12px;background:var(--grey100)}
+.tds-segmented button{flex:1;min-height:36px;padding:0 14px;border:0;border-radius:9px;background:none;color:var(--grey700);font-size:15px;font-weight:500;white-space:nowrap}
+.tds-segmented button[aria-pressed=true]{background:#fff;color:var(--ink);font-weight:600}
+
+/* ---------- 체크 (원형). <input type="checkbox" class="tds-check"> ---------- */
+.tds-check{appearance:none;-webkit-appearance:none;width:24px;height:24px;margin:0;flex-shrink:0;border-radius:50%;background:center/14px no-repeat url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 14'%3E%3Cpath d='m2.5 7.2 3 3 6-6.4' fill='none' stroke='%23d1d6db' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");cursor:pointer}
+.tds-check:checked{background-color:var(--blue500);background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 14'%3E%3Cpath d='m2.5 7.2 3 3 6-6.4' fill='none' stroke='%23fff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")}
+.tds-check:disabled{cursor:default;opacity:.6}
+.tds-check:focus-visible{outline:none;box-shadow:0 0 0 1px #8ac0ff,0 0 0 3px #b8d9ff}
+
+/* ---------- Progress Bar ---------- */
+.tds-progress{height:8px;border-radius:4px;background:var(--grey100);overflow:hidden}
+.tds-progress>i{display:block;height:100%;border-radius:4px;background:var(--blue500)}
+
+/* ---------- 굵은 구분선 ---------- */
+.tds-divider{height:12px;margin:0;border:0;background:var(--canvas)}

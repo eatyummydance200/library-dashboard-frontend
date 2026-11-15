@@ -1,0 +1,138 @@
+/* 매뉴얼 화면 (Figma 매뉴얼 모바일 55088:1556 · 데스크톱 55092:3121). 공통 부품은 tds.css.
+   style.css의 옛 .manual-* 규칙과 겹치지 않게 mnl- 접두어를 쓴다.
+   manual-heading/num/stars/callout/image는 check-manual이 확인하는 마크업이라 이름을 유지하고 .mnl-doc 아래에서 덮어쓴다. */
+.mnl{gap:16px}
+.mnl mark{padding:0 1px;border-radius:4px;background:var(--orange100);color:inherit}
+.mnl-hint{color:var(--text-3);font-size:14px;line-height:1.6}
+
+/* ---------- 찾기 카드: Search Field + 상황별 바로가기 ---------- */
+.mnl-find{position:relative;z-index:5;overflow:visible;padding:20px 0}
+.mnl-find.is-compact{padding:12px 0}
+.mnl-find .list-header{padding:24px 24px 10px}
+.mnl-find .list-header h2{font-size:15px;font-weight:600;color:var(--text-2)}
+.mnl-chips{padding:0 24px}
+.mnl-searchbox{position:relative;margin:0 16px}
+.mnl-search{position:relative;display:block;min-width:0}
+.mnl-search>svg{position:absolute;left:14px;top:50%;width:22px;height:22px;transform:translateY(-50%);color:var(--grey600);pointer-events:none}
+.mnl-search input{width:100%;min-height:48px;padding:0 44px 0 46px;border:0;border-radius:12px;background:var(--grey100);color:var(--ink);font-size:17px}
+.mnl-search input::placeholder{color:var(--grey500)}
+.mnl-search input:focus{outline:none;box-shadow:inset 0 0 0 2px var(--blue500)}
+.mnl-search kbd{position:absolute;right:12px;top:50%;transform:translateY(-50%);padding:0 7px;border-radius:6px;background:#fff;color:var(--text-3);font:600 12px/22px Pretendard,sans-serif}
+@media(pointer:coarse),(max-width:899px){.mnl-search kbd{display:none}}
+.mnl-results{position:absolute;top:calc(100% + 8px);left:0;right:0;max-height:min(60vh,480px);overflow:auto;border:1px solid var(--grey200);border-radius:16px;background:#fff}
+.mnl-results ul{margin:0;padding:6px;list-style:none}
+.mnl-results li>button{display:grid;gap:2px;width:100%;min-height:var(--tap);padding:10px 12px;border:0;border-radius:12px;background:none;text-align:left;font:inherit}
+.mnl-result-path{font-size:15px;font-weight:600;color:var(--ink)}
+.mnl-result-snippet{font-size:14px;line-height:1.6;color:var(--text-3);overflow-wrap:anywhere}
+.mnl-results-empty{padding:18px;color:var(--text-3);font-size:14px}
+@media(hover:hover){.mnl-results li>button:hover{background:var(--grey50)}}
+
+/* ---------- 목차 카드: ListRow, 데스크톱은 세로 순서 2열 ---------- */
+.mnl-toc{padding-bottom:12px}
+.mnl-toc .list-header{padding-bottom:4px}
+.mnl-chapters{margin:0;padding:0;list-style:none}
+.mnl-chapters>li{break-inside:avoid}
+.mnl-chapters .list-row-sub{display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden}
+@media(min-width:900px){.mnl-chapters{columns:2;column-gap:0}}
+
+/* ---------- 빈 매뉴얼 ---------- */
+.mnl-empty{display:flex;flex-direction:column;align-items:center;gap:10px;padding:56px 20px;text-align:center;font-size:17px;font-weight:600}
+.mnl-empty>svg{width:40px;height:40px;color:var(--blue500)}
+.mnl-empty .mnl-hint{font-weight:400}
+
+/* ---------- 장 보기: 목차 사이드 + 본문 카드 ---------- */
+.mnl-read{display:flex;flex-direction:column;gap:16px}
+.mnl-main{display:flex;flex-direction:column;gap:16px;min-width:0}
+@media(min-width:900px){
+  .mnl-read{display:grid;grid-template-columns:260px minmax(0,1fr);align-items:start}
+  .mnl-side{position:sticky;top:24px;max-height:calc(100dvh - 48px);overflow:auto}
+}
+.mnl-nav,.mnl-nav-sub{margin:0;padding:0;list-style:none}
+.mnl-nav{padding:8px}
+.mnl-nav-chapter{display:flex;align-items:center;min-height:var(--tap);padding:8px 12px;border-radius:12px;color:var(--text-2);font-size:15px;font-weight:600;line-height:1.4;text-decoration:none}
+.mnl-nav>li.is-active>.mnl-nav-chapter{background:var(--grey100);color:var(--ink);font-weight:700}
+.mnl-nav-sub{margin:2px 0 6px;padding-left:12px}
+.mnl-nav-sub a{display:flex;align-items:center;min-height:36px;padding:6px 12px;border-radius:10px;color:var(--text-3);font-size:14px;line-height:1.45;text-decoration:none}
+.mnl-nav-sub a[aria-current=location]{color:var(--blue600);font-weight:600}
+@media(hover:hover){.mnl-nav a:hover{background:var(--grey50)}}
+
+/* 모바일 접이식 목차 */
+.mnl-fold>summary{display:flex;align-items:center;gap:12px;min-height:56px;padding:0 20px;font-size:16px;font-weight:700;color:var(--ink);cursor:pointer;list-style:none}
+.mnl-fold>summary::-webkit-details-marker{display:none}
+.mnl-fold>summary::after{content:'';flex-shrink:0;width:8px;height:8px;border-right:2px solid var(--grey400);border-bottom:2px solid var(--grey400);transform:rotate(45deg) translateY(-2px);transition:transform .15s}
+.mnl-fold[open]>summary::after{transform:rotate(225deg) translateY(-2px)}
+.mnl-fold-current{flex:1;min-width:0;overflow:hidden;color:var(--text-3);font-size:14px;font-weight:500;text-align:right;text-overflow:ellipsis;white-space:nowrap}
+.mnl-fold .mnl-nav{padding:0 8px 8px}
+
+/* ---------- 본문 ---------- */
+.mnl-doc{padding:0 32px 32px;color:var(--text-2);font-size:16px;line-height:1.75}
+.mnl-doc-top{display:flex;align-items:center;justify-content:space-between;gap:8px;padding-top:16px}
+.mnl-crumb{display:flex;align-items:center;gap:2px;min-width:0;color:var(--text-3);font-size:14px}
+.mnl-crumb a{display:inline-flex;align-items:center;min-height:var(--tap);color:var(--text-3);font-weight:600;text-decoration:none}
+.mnl-crumb svg{flex-shrink:0;width:16px;height:16px;color:var(--grey400)}
+.mnl-crumb span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mnl-doc .manual-heading{display:flex;align-items:center;flex-wrap:wrap;gap:4px 8px;padding:0;border:0;border-radius:8px;color:var(--ink);font-weight:700;line-height:1.4;letter-spacing:-.4px}
+.mnl-doc h2.manual-heading{margin:28px 0 12px;font-size:26px}
+.mnl-doc h3.manual-heading{margin:36px 0 10px;font-size:20px}
+.mnl-doc h4.manual-heading{margin:24px 0 8px;font-size:17px}
+.mnl-doc>.manual-heading:first-child,.mnl-doc-top+.manual-heading{margin-top:12px}
+.mnl-doc .manual-num{color:var(--blue600)}
+.mnl-doc .manual-stars{margin-left:0;color:#c25e00;font-size:14px;letter-spacing:-1px;white-space:nowrap}
+.mnl-flash{animation:mnl-flash 1.8s ease-out}
+@keyframes mnl-flash{0%,35%{background:var(--orange50);box-shadow:0 0 0 6px var(--orange50)}100%{background:transparent;box-shadow:0 0 0 6px transparent}}
+.mnl-copy{display:inline-grid;place-items:center;width:40px;height:40px;border:0;border-radius:10px;background:none;color:var(--grey500)}
+.mnl-copy svg{width:17px;height:17px}
+@media(hover:hover){
+  .mnl-copy{opacity:0}
+  .manual-heading:hover .mnl-copy,.mnl-copy:focus-visible{opacity:1}
+  .mnl-copy:hover{background:var(--grey100);color:var(--ink)}
+}
+.mnl-doc p{margin:10px 0}
+.mnl-doc p,.mnl-doc li{white-space:pre-line;overflow-wrap:anywhere}
+.mnl-doc ul,.mnl-doc ol{margin:8px 0;padding-left:22px}
+.mnl-doc li{margin:3px 0}
+.mnl-doc li>ul,.mnl-doc li>ol{margin:3px 0}
+.mnl-doc strong{color:var(--ink)}
+.mnl-doc .manual-callout{margin:16px 0;padding:14px 18px;border:0;border-radius:14px;background:var(--blue50);color:var(--grey800)}
+.mnl-doc .manual-callout.warning{background:var(--orange50);color:var(--grey800)}
+.mnl-doc .manual-callout>:first-child{margin-top:0}
+.mnl-doc .manual-callout>:last-child{margin-bottom:0}
+.mnl-table{margin:16px 0;overflow-x:auto}
+.mnl-table table{min-width:100%;border-collapse:collapse;font-size:14px;line-height:1.6}
+.mnl-table th,.mnl-table td{padding:10px 12px;border:1px solid var(--grey200);text-align:left;vertical-align:top}
+.mnl-table th{background:var(--grey50);color:var(--ink);font-weight:600;white-space:nowrap}
+.mnl-doc .manual-image{display:block;width:fit-content;max-width:100%;margin:12px 0;cursor:zoom-in}
+.mnl-doc .manual-image img{display:block;max-width:100%;height:auto;border:1px solid var(--grey200);border-radius:12px}
+
+/* 이전/다음 장 */
+.mnl-pager{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:32px}
+.mnl-pager button{display:flex;flex-direction:column;align-items:flex-start;gap:2px;min-width:0;min-height:64px;padding:12px 18px;border:0;border-radius:16px;background:var(--grey100);text-align:left;font:inherit}
+.mnl-pager button.is-next{align-items:flex-end;text-align:right}
+.mnl-pager small{color:var(--text-3);font-size:13px}
+.mnl-pager strong{max-width:100%;overflow:hidden;color:var(--ink);font-size:16px;font-weight:600;text-overflow:ellipsis;white-space:nowrap}
+@media(hover:hover){.mnl-pager button:hover{background:var(--grey200)}}
+@media(max-width:899px){.mnl-doc{padding:0 20px 24px}.mnl-doc h2.manual-heading{font-size:22px}.mnl-doc h3.manual-heading{font-size:18px}}
+
+/* ---------- 관리자 편집기 ---------- */
+.mnl-syntax{margin:0;padding:16px 24px;font-size:13px}
+.mnl-editor-grid{display:grid;border-top:1px solid var(--grey200)}
+.mnl-editor-source textarea{display:block;width:100%;height:45dvh;min-height:280px;padding:16px 24px;border:0;border-bottom:1px solid var(--grey200);resize:vertical;background:var(--grey50);color:var(--ink);font:14px/1.7 ui-monospace,Consolas,"Malgun Gothic",monospace}
+.mnl-editor-source textarea:focus{outline:none;background:#fff;box-shadow:inset 0 0 0 2px var(--blue500)}
+.mnl-preview{max-height:60dvh;overflow:auto;padding-top:8px}
+@media(min-width:900px){
+  .mnl-editor-grid{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+  .mnl-editor-source textarea{height:calc(100dvh - 260px);border-bottom:0;border-right:1px solid var(--grey200)}
+  .mnl-preview{height:calc(100dvh - 260px);max-height:none}
+}
+
+/* ---------- 모바일: 흰 화면, 섹션 사이 굵은 회색 줄 ---------- */
+@media(max-width:899px){
+  body[data-page=manual]{background:#fff}
+  .mnl.view,.mnl-read,.mnl-main{gap:0}
+  .mnl .tds-card{border-radius:0}
+  .mnl .tds-card+.tds-card{border-top:12px solid var(--canvas)}
+  .mnl-find{padding:8px 0 20px}
+  .mnl-find.is-compact{padding:4px 0 16px}
+  .mnl-find .list-header{padding:20px 24px 10px}
+  .mnl-searchbox{margin:0 20px}
+}
