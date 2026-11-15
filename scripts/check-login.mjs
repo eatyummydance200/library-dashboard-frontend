@@ -14,6 +14,20 @@ try {
   assert.match(html, /name="username"/);
   assert.match(html, /name="password"/);
   assert.doesNotMatch(html, /서버 연결|다시 시도|role="alert"|disabled|불러오는 중/);
+  assert.match(html, /type="password"/);
+  assert.match(html, /aria-label="비밀번호 보기"/);
+
+  // 모바일 "전체" 화면: 보기 전용 계정은 인적관리·비밀번호 변경·문의가 없다
+  const { default: More } = await server.ssrLoadModule("/src/More.tsx");
+  const more = (role) => renderToStaticMarkup(createElement(More, {
+    user: { id: 1, username: "serial", role }, open() {}, dialog() {}, logout: async () => {},
+  }));
+  for (const text of ["인적관리", "매뉴얼", "비밀번호 변경", "개발자에게 문의", "로그아웃", "공용 계정"])
+    assert.match(more("worker"), new RegExp(text));
+  const viewer = more("viewer");
+  assert.match(viewer, /매뉴얼/);
+  assert.match(viewer, /로그아웃/);
+  assert.doesNotMatch(viewer, /인적관리|비밀번호 변경|개발자에게 문의/);
 
   const { api, ApiError } = await server.ssrLoadModule("/src/api.ts");
   for (const body of ["Bad Gateway", JSON.stringify({ error: { code: "DNS_HOSTNAME_NOT_FOUND" } })]) {
@@ -35,7 +49,7 @@ try {
   await assert.rejects(api("/auth/login", "POST", {}), (error) => error.status === 401 && error.message === "아이디 또는 비밀번호가 올바르지 않습니다.");
   globalThis.fetch = async () => new Response(JSON.stringify({ user: { username: "test" }, csrf: "test-token" }));
   assert.equal((await api("/me")).user.username, "test");
-  console.log("PASS: initial login markup, gateway/network/timeout errors, cancellation, login rejection, successful session response");
+  console.log("PASS: initial login markup, more screen by role, gateway/network/timeout errors, cancellation, login rejection, successful session response");
 } finally {
   globalThis.fetch = originalFetch;
   await server.close();

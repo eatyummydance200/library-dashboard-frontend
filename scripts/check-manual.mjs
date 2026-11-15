@@ -6,7 +6,12 @@ import { createServer } from "vite";
 const server = await createServer({ server: { middlewareMode: true, hmr: false }, appType: "custom" });
 try {
   const { parse, sections, search, highlight, inline } = await server.ssrLoadModule("/src/markdown.ts");
-  const { ManualDocument } = await server.ssrLoadModule("/src/Manual.tsx");
+  const { ManualDocument, updatedLine } = await server.ssrLoadModule("/src/Manual.tsx");
+  // PageTop 윗줄: 한국 시간 날짜 + 받침에 맞는 이/가
+  assert.equal(updatedLine("2026-11-02T16:30:00Z", "관리자"), "11월 3일 관리자가 고쳤어요");
+  assert.equal(updatedLine("2026-11-03T01:00:00Z", "사서실"), "11월 3일 사서실이 고쳤어요");
+  assert.equal(updatedLine("2026-11-03T01:00:00Z", null), "11월 3일에 고쳤어요");
+  assert.equal(updatedLine(null, "관리자"), undefined);
   const source = [
     "# 2. 오픈 업무 ★★★",
     "오픈 전 **확인**",

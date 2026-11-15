@@ -1,56 +1,51 @@
 import { useEffect, useRef, useState } from "react";
 import { api, message, useResource } from "./api";
 import type { TaggingData, User } from "./types";
-import { koreaParts } from "./dates";
-import { Loading, ResourceError, Stepper, useMobile, useNotice } from "./ui";
+import { Badge, ListHeader } from "./tds";
+import { Loading, ResourceError, useNotice } from "./ui";
+import { ProgressCard } from "./Archive";
 
-// onChanged: 월간 요약 카드의 진행률을 바로 다시 불러온다
-export default function Tagging({ user, onChanged }: { user: User; onChanged?: () => Promise<void> }) {
-  const mobile = useMobile();
-  const [clock, setClock] = useState(koreaParts());
-  const currentYear = Number(clock.year),
-    month = Number(clock.month);
-  const [year, setYear] = useState(currentYear);
-  const [selected, setSelected] = useState(month);
-  const chips = useRef<HTMLDivElement>(null);
-  // 휴대폰에서 고른 달 칩이 가로 스크롤 밖에 있으면 보이게 한다
-  useEffect(() => {
-    const row = chips.current;
-    const chip = row?.querySelector("[aria-pressed=true]");
-    if (!row || !chip) return;
-    const a = row.getBoundingClientRect(), b = chip.getBoundingClientRect();
-    row.scrollLeft += b.left - a.left - (a.width - b.width) / 2;
-  }, [selected]);
+export function taggingProgress(data: TaggingData, month: number) {
+  const active = data.staff.filter((person) => person.active);
+  const completed = new Set(
+    data.tags
+      .filter((tag) => tag.month === month && tag.completed)
+      .map((tag) => tag.staff_id),
+  );
+  return {
+    done: active.filter((person) => completed.has(person.id)).length,
+    total: active.length,
+  };
+}
+
+// month(YYYY-MM)의 근무자별 태깅 완료. 체크는 관리자만 바꿀 수 있다.
+export default function Tagging({ user, month: value, onLock }: { user: User; month: string; onLock?: (locked: boolean) => void }) {
+  const year = Number(value.slice(0, 4)),
+    month = Number(value.slice(5));
   const table = useResource<TaggingData>(`/tagging?year=${year}`);
-  const current = useResource<TaggingData>(`/tagging?year=${currentYear}`);
-  const summary = year === currentYear ? table : current;
   const busy = useRef(new Set<string>());
   const [pending, setPending] = useState<string[]>([]);
   const notice = useNotice();
+  const admin = user.role === "admin";
   useEffect(() => {
-    const timer = setInterval(() => setClock(koreaParts()), 60000);
-    return () => clearInterval(timer);
-  }, []);
-  async function toggle(person: number, month: number, completed: boolean) {
+    onLock?.(pending.length > 0);
+    return () => onLock?.(false);
+  }, [pending.length > 0]);
+  async function toggle(person: number, completed: boolean) {
     const key = `${person}/${year}/${month}`;
     if (busy.current.has(key)) return;
     busy.current.add(key);
     setPending([...busy.current]);
     try {
       await api(`/tagging/${key}`, "PUT", { completed });
-      const change = (data: TaggingData): TaggingData => ({
+      table.update((data) => ({
         ...data,
         tags: [
-          ...data.tags.filter(
-            (tag) => tag.staff_id !== person || tag.month !== month,
-          ),
+          ...data.tags.filter((tag) => tag.staff_id !== person || tag.month !== month),
           { staff_id: person, month, completed: Number(completed) },
         ],
-      });
-      table.update(change);
-      if (year === currentYear) current.update(change);
-      void onChanged?.();
-      notice("태깅 상태를 저장했습니다.");
+      }));
+      notice("태깅 상태를 저장했어요.");
     } catch (error) {
       notice(message(error));
     } finally {
@@ -58,118 +53,41 @@ export default function Tagging({ user, onChanged }: { user: User; onChanged?: (
       setPending([...busy.current]);
     }
   }
-  const active = summary.data?.staff.filter((person) => person.active) ?? [];
-  const completed = new Set(
-    summary.data?.tags
-      .filter((tag) => tag.month === month && tag.completed)
-      .map((tag) => tag.staff_id),
-  );
-  const done = active.filter((person) => completed.has(person.id)).length;
-  const percent = active.length ? Math.round((done / active.length) * 100) : 0;
+  const data = table.data;
+  if (!data) return <Loading error={table.error} retry={table.refresh} />;
+  const progress = taggingProgress(data, month);
   return (
-    <section id="tagging" className="view" aria-label="태깅">
-      <section className="card">
-        {mobile ? (
-          <div className="card-head">
-            <Stepper
-              label={`${year}년`}
-              prev="이전 연도"
-              next="다음 연도"
-              onMove={(offset) => setYear(year + offset)}
-              canPrev={year > 2000 && !pending.length}
-              canNext={year < 2100 && !pending.length}
-            />
-            {user.role !== "admin" && <span className="list-note">조회만 할 수 있어요</span>}
-          </div>
-        ) : (
-        <div className="card-head panel-bar">
-          <div className="week-controls">
-            <button
-              className="icon-btn"
-              aria-label="이전 연도"
-              disabled={year <= 2000 || !!pending.length}
-              onClick={() => setYear(year - 1)}
-            >
-              ‹
-            </button>
-            <strong>{year}년</strong>
-            <button
-              className="icon-btn"
-              aria-label="다음 연도"
-              disabled={year >= 2100 || !!pending.length}
-              onClick={() => setYear(year + 1)}
-            >
-              ›
-            </button>
-          </div>
-          <div id="tag-status" aria-live="polite">
-            {summary.data ? (
-              <>
-                <span className="tag-status-summary">
-                  이번 달({month}월) <strong>{done}</strong> / {active.length}명 완료
-                  {percent === 100 && " · 모두 완료했어요!"}
-                </span>
-                <progress max={active.length || 1} value={done} aria-label={`${month}월 태깅 진행률`}>
-                  {percent}%
-                </progress>
-              </>
-            ) : summary.error ? (
-              <ResourceError error={summary.error} retry={summary.refresh} />
-            ) : "…"}
-          </div>
-        </div>
-        )}
-        {summary.data && <ResourceError error={summary.error} retry={summary.refresh} />}
-        <div ref={chips} className="month-chips" role="group" aria-label="태깅 월 선택">
-          {Array.from({ length: 12 }, (_, i) => (
-            <button
-              key={i}
-              type="button"
-              aria-pressed={selected === i + 1}
-              className={year === currentYear && i + 1 === month ? "this-month" : undefined}
-              onClick={() => setSelected(i + 1)}
-            >
-              {i + 1}월
-            </button>
-          ))}
-        </div>
-        {table.data ? (
-          <>
-            <ResourceError error={table.error} retry={table.refresh} />
-            <ul className="tag-list" aria-label={`${year}년 ${selected}월 근무자별 태깅 완료 여부`}>
-              {table.data.staff.map((person) => {
-                const tags = table.data!.tags.filter((tag) => tag.staff_id === person.id && tag.completed);
-                const completed = tags.some((tag) => tag.month === selected);
-                const key = `${person.id}/${year}/${selected}`;
-                const saving = pending.includes(key);
-                return (
-                  <li key={person.id} className={`tag-row${completed ? " is-complete" : ""}`}>
-                    <span className="tag-name">
-                      <strong>{person.name}</strong>
-                      {!person.active && <small className="badge">비활성</small>}
-                      <small>올해 {tags.length}/12</small>
-                    </span>
-                    <button
-                      className="tag-mark"
-                      disabled={user.role !== "admin"}
-                      aria-disabled={saving || undefined}
-                      aria-busy={saving || undefined}
-                      aria-pressed={completed}
-                      aria-label={`${person.name} ${year}년 ${selected}월 ${completed ? "완료" : "미완료"}`}
-                      onClick={() => void toggle(person.id, selected, !completed)}
-                    >
-                      {completed ? "✓ 완료" : "미완료"}
-                    </button>
-                  </li>
-                );
-              })}
-              {!table.data.staff.length && <li className="shift-issue-empty">등록된 근무자가 없습니다.</li>}
-            </ul>
-          </>
-        ) : (
-          <Loading error={table.error} retry={table.refresh} />
-        )}
+    <div className="monthly-panel">
+      <ResourceError error={table.error} retry={table.refresh} />
+      <ProgressCard label={`${month}월 태깅`} unit="명" done={progress.done} total={progress.total} />
+      <section className="tds-card monthly-list" aria-label={`${year}년 ${month}월 근무자별 태깅 완료 여부`}>
+        <ListHeader level={3} title="근무자" tail={!admin && "조회만 할 수 있어요"} />
+        {data.staff.map((person) => {
+          const tags = data.tags.filter((tag) => tag.staff_id === person.id && tag.completed);
+          const completed = tags.some((tag) => tag.month === month);
+          const saving = pending.includes(`${person.id}/${year}/${month}`);
+          return (
+            <label key={person.id} className="check-row">
+              <span>
+                {person.name}
+                {!person.active && <Badge color="grey">비활성</Badge>}
+                <small>올해 {tags.length}/12</small>
+              </span>
+              <input
+                type="checkbox"
+                className="tds-check"
+                checked={completed}
+                disabled={!admin}
+                aria-busy={saving || undefined}
+                aria-disabled={saving || undefined}
+                aria-label={`${person.name} ${year}년 ${month}월 태깅 완료`}
+                onChange={() => void toggle(person.id, !completed)}
+              />
+            </label>
+          );
+        })}
+        {!data.staff.length && <p className="issue-empty">등록된 근무자가 없어요.</p>}
       </section>
-    </section>
+    </div>
   );
 }

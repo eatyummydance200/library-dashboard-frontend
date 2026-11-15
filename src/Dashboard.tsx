@@ -1,12 +1,13 @@
 import { useEffect, useState } from "react";
 import { api, useResource } from "./api";
-import type { Duty, Issue, Staff, Status, Teacher, User } from "./types";
-import { koreaParts, today } from "./dates";
+import type { Duty, Issue, Shift, Staff, Status, Teacher, User } from "./types";
+import { koreaParts, time, today } from "./dates";
 import { IssueEditor, TodayIssues } from "./Issues";
+import { Badge, Card, Chevron, ListHeader, ListRow, PageTop } from "./tds";
+import "./home.css";
 import {
   Field,
   Form,
-  Icon,
   Loading,
   Modal,
   ResourceError,
@@ -14,6 +15,32 @@ import {
   useMobile,
   useNotice,
 } from "./ui";
+
+const clockOf = (at: string) => {
+  const parts = koreaParts(new Date(at));
+  return `${parts.hour}:${parts.minute}`;
+};
+const dateOf = (at: string) =>
+  new Intl.DateTimeFormat("ko-KR", { timeZone: "Asia/Seoul", month: "long", day: "numeric", weekday: "long" }).format(new Date(at));
+const roleBadge = (role: Shift["role"]) =>
+  role === "desk" ? <Badge color="blue">데스크</Badge> : <Badge color="yellow">대기</Badge>;
+
+// 맨 위 문장: 지금 데스크를 맡은 사람과 다음에 바뀌는 시각. next는 다음 경계 시각(next_at)의 근무자들이다.
+export function deskHeadline(status: Status, nameOf: (id: number) => string) {
+  const desk = (shifts: Shift[]) => shifts.filter((shift) => shift.role === "desk");
+  const names = (shifts: Shift[]) => desk(shifts).map((shift) => nameOf(shift.staff_id)).join("·");
+  const now = names(status.current);
+  const next = names(status.next);
+  const at = status.next_at && clockOf(status.next_at);
+  const title = now ? `지금 데스크는\n${now}님이 지키고 있어요` : "지금은 데스크\n근무가 없어요";
+  let lower: string;
+  if (at && now !== next) {
+    if (!next) lower = `${at}에 데스크 근무가 끝나요`;
+    else lower = now ? `${at}에 ${next}님으로 바뀌어요` : `${at}에 ${next}님이 시작해요`;
+  } else if (now) lower = `${time(Math.min(...desk(status.current).map((shift) => shift.end)))}까지 근무해요`;
+  else lower = "오늘 남은 근무가 없어요";
+  return { title, lower };
+}
 
 export default function Dashboard({
   user,
@@ -48,70 +75,131 @@ export default function Dashboard({
     };
   }, [status.refresh, duty.refresh, dailyIssues.refresh]);
   const mobile = useMobile();
-  const clock = status.data ? koreaParts(new Date(status.data.at)) : undefined;
-  const nameOf = (id: number) =>
-    staff.data?.find((person) => person.id === id)?.name ?? "근무자";
-  function people(key: "previous" | "current" | "next", role: "desk" | "general") {
-    const entries = status.data![key].filter((shift) => shift.role === role);
-    return entries.length ? (
-      entries.map((shift) => (
-        <span className="duty-person" key={shift.id}>
-          {nameOf(shift.staff_id)}
-        </span>
-      ))
-    ) : (
-      <span className="unassigned">비어 있어요</span>
-    );
-  }
-  // 모바일: 이전·다음 근무를 "다음 15:00 · 김가 · 이나(대기)"처럼 한 줄로
-  function neighbor(key: "previous" | "next") {
-    const at = status.data![`${key}_at`];
-    const parts = at ? koreaParts(new Date(at)) : undefined;
-    const names = status.data![key].map(
-      (shift) => `${nameOf(shift.staff_id)}${shift.role === "desk" ? "" : "(대기)"}`,
-    );
-    return (
-      <p key={key} className="neighbor-line">
-        <b>{key === "previous" ? "이전" : "다음"}</b>
-        <time dateTime={at ?? undefined}>{parts ? `${parts.hour}:${parts.minute}` : "예정 없음"}</time>
-        {parts && <span>{names.join(" · ") || "비어 있어요"}</span>}
-      </p>
-    );
-  }
+  const nameOf = (id: number) => staff.data?.find((person) => person.id === id)?.name ?? "근무자";
+  const ready = status.data && staff.data ? status.data : undefined;
   const retryStatus = () => {
     void status.refresh();
     void staff.refresh();
   };
-  const nowHead = (
-    <div className="card-head">
-      <h2 id="now-title">
-        <i className="live-dot" aria-hidden="true" />
-        지금 근무 중
-      </h2>
-      <span id="shift-date">
-        {clock &&
-          `${Number(clock.month)}월 ${Number(clock.day)}일 ${clock.hour}:${clock.minute}`}
-      </span>
-    </div>
+  const headline = ready && deskHeadline(ready, nameOf);
+  // 줄바꿈은 모바일에서만 (데스크톱은 한 줄)
+  const title = headline ? (mobile ? headline.title : headline.title.replace("\n", " ")) : "근무 현황";
+  const shiftRows = (shifts: Shift[], withTime: boolean) =>
+    shifts.map((shift) => (
+      <ListRow
+        key={shift.id}
+        icon="user"
+        title={nameOf(shift.staff_id)}
+        sub={withTime ? `${time(shift.start)}–${time(shift.end)}` : undefined}
+        right={roleBadge(shift.role)}
+      />
+    ));
+  const lineup = (shifts: Shift[]) =>
+    shifts.map((shift) => `${nameOf(shift.staff_id)}(${shift.role === "desk" ? "데스크" : "대기"})`).join(" · ");
+
+  const nowCard = (
+    <Card className="home-card" labelledBy="now-title">
+      <ListHeader id="now-title" title="지금 근무 중" tail={ready && `${clockOf(ready.at)} 기준`} />
+      {ready ? (
+        <>
+          <ResourceError error={status.error || staff.error} retry={retryStatus} />
+          {ready.current.length ? shiftRows(ready.current, true) : <p className="home-empty">지금은 근무 중인 사람이 없어요</p>}
+          {mobile && ready.next_at && (
+            <ListRow title={`다음 근무 ${clockOf(ready.next_at)}`} sub={lineup(ready.next) || "근무자가 없어요"} />
+          )}
+        </>
+      ) : (
+        <Loading error={status.error || staff.error} retry={retryStatus} />
+      )}
+    </Card>
   );
-  const nowRoles = () => (
-    <>
-      <ResourceError error={status.error || staff.error} retry={retryStatus} />
-      <div className="now-roles">
-        {(["desk", "general"] as const).map((role) => (
-          <div
-            key={role}
-            className={`duty-group ${role === "desk" ? "desk-duty" : "standby-duty"}`}
-          >
-            <h3>{role === "desk" ? "데스크" : "대기 근무"}</h3>
-            <div className="duty-people">{people("current", role)}</div>
+  const nextCard = ready && (
+    <Card className="home-card" labelledBy="next-title">
+      <ListHeader id="next-title" title="다음 근무" tail={ready.next_at && <span className="home-next-at">{clockOf(ready.next_at)}</span>} />
+      {ready.next_at ? (
+        ready.next.length ? shiftRows(ready.next, false) : <p className="home-empty">근무자가 없어요</p>
+      ) : (
+        <p className="home-empty">오늘 남은 근무가 없어요</p>
+      )}
+      {ready.previous_at && (
+        <ListRow title={`이전 근무 ${clockOf(ready.previous_at)}`} sub={lineup(ready.previous) || "근무자가 없어요"} />
+      )}
+    </Card>
+  );
+  const d = duty.data;
+  const dutyCard = (
+    <Card className="home-card" label={mobile ? "오늘의 당직" : undefined} labelledBy={mobile ? undefined : "duty-title"}>
+      {!mobile && <ListHeader id="duty-title" title="오늘의 당직" />}
+      {d ? (
+        <>
+          <ResourceError error={duty.error} retry={duty.refresh} />
+          <ListRow
+            icon="phone"
+            title={d.teacher ? `${d.teacher} 선생님` : "아직 정해지지 않았어요"}
+            sub={[mobile && "오늘의 당직", d.extension && `내선 ${d.extension}`, !mobile && d.phone].filter(Boolean).join(" · ") || undefined}
+            right={d.phone && (
+              <a className="btn weak small home-call" href={`tel:${d.phone}`} aria-label={`당직 ${d.teacher} 선생님 휴대폰 ${d.phone}로 전화`}>
+                전화
+              </a>
+            )}
+          />
+          {user.role === "admin" && (
+            <div className="home-card-foot">
+              <button type="button" className="btn home-wide" aria-label="당직 정보 수정" onClick={() => setEditing(true)}>
+                수정
+              </button>
+            </div>
+          )}
+        </>
+      ) : (
+        <Loading error={duty.error} retry={duty.refresh} />
+      )}
+    </Card>
+  );
+  const left = dailyIssues.data?.filter((issue) => !issue.done).length;
+  const issuesCard = (
+    <Card className="home-card" labelledBy="today-issues-title">
+      <ListHeader
+        id="today-issues-title"
+        title={`오늘 할 일${left ? ` ${left}` : ""}`}
+        tail={
+          <button type="button" className="home-more" onClick={showIssues} aria-label="주간 이슈로 이동">
+            {mobile ? "전체보기" : "주간 이슈"}
+            <Chevron />
+          </button>
+        }
+      />
+      <TodayIssues resource={dailyIssues} user={user} onChanged={issues.refresh} />
+      {user.role !== "viewer" && (
+        <div className="home-card-foot">
+          <button type="button" className="text-btn home-add" onClick={() => setAddingIssue(true)}>
+            + 이슈 남기기
+          </button>
+        </div>
+      )}
+    </Card>
+  );
+  return (
+    <section id="dashboard" className="view home" aria-label="근무 대시보드">
+      <PageTop upper={ready && dateOf(ready.at)} title={title} lower={headline?.lower} brandLower />
+      {mobile ? (
+        <div className="home-col">
+          {nowCard}
+          {dutyCard}
+          {issuesCard}
+        </div>
+      ) : (
+        <div className="home-grid">
+          <div className="home-col">
+            {nowCard}
+            {issuesCard}
           </div>
-        ))}
-      </div>
-    </>
-  );
-  const dialogs = (
-    <>
+          <div className="home-col">
+            {dutyCard}
+            {nextCard}
+          </div>
+        </div>
+      )}
       {addingIssue && (
         <IssueEditor
           day={day}
@@ -121,164 +209,7 @@ export default function Dashboard({
           }}
         />
       )}
-      {editing && (
-        <DutyEditor onClose={() => setEditing(false)} onSaved={duty.refresh} />
-      )}
-    </>
-  );
-  if (mobile) return (
-    <section id="dashboard" className="view" aria-label="근무 대시보드">
-      <section className="card now-card" aria-labelledby="now-title">
-        {nowHead}
-        {status.data && staff.data ? (
-          <>
-            {nowRoles()}
-            <div className="shift-neighbors">{neighbor("previous")}{neighbor("next")}</div>
-          </>
-        ) : (
-          <Loading error={status.error || staff.error} retry={retryStatus} />
-        )}
-        <div className="now-duty" aria-label="오늘의 당직">
-          {duty.data ? (
-            <>
-              <ResourceError error={duty.error} retry={duty.refresh} />
-              <p>
-                <b>당직</b>
-                <span>
-                  {duty.data.teacher || "아직 정해지지 않았어요"}
-                  {duty.data.extension && ` · 내선 ${duty.data.extension}`}
-                </span>
-              </p>
-              {duty.data.phone && (
-                <a className="btn call-btn" href={`tel:${duty.data.phone}`} aria-label={`당직 ${duty.data.teacher} 휴대폰 ${duty.data.phone}로 전화`}>
-                  <Icon name="phone" />
-                  전화
-                </a>
-              )}
-              {user.role === "admin" && (
-                <button className="text-btn" aria-label="당직 정보 수정" onClick={() => setEditing(true)}>
-                  수정
-                </button>
-              )}
-            </>
-          ) : (
-            <Loading error={duty.error} retry={duty.refresh} />
-          )}
-        </div>
-      </section>
-      <section className="card list-card" aria-labelledby="today-issues-title">
-        <div className="card-head">
-          <h2 id="today-issues-title">오늘 할 일</h2>
-        </div>
-        <TodayIssues resource={dailyIssues} user={user} onChanged={issues.refresh} />
-      </section>
-      {user.role !== "viewer" && (
-        <button className="btn primary fab" onClick={() => setAddingIssue(true)}>
-          <Icon name="plus" />
-          새 이슈
-        </button>
-      )}
-      {dialogs}
-    </section>
-  );
-  return (
-    <section id="dashboard" className="view" aria-label="근무 대시보드">
-      <div className="dashboard-grid">
-        <section className="card now-card" aria-labelledby="now-title">
-          {nowHead}
-          {status.data && staff.data ? (
-            <>
-              {nowRoles()}
-              <div className="shift-neighbors">
-                {(["previous", "next"] as const).map((key) => {
-                  const at = status.data![`${key}_at`];
-                  const parts = at ? koreaParts(new Date(at)) : undefined;
-                  return (
-                    <article key={key} className="shift">
-                      <div className="shift-head">
-                        <h3>{key === "previous" ? "이전 근무" : "다음 근무"}</h3>
-                        <time dateTime={at ?? undefined}>
-                          {parts ? `${parts.hour}:${parts.minute}` : "예정 없음"}
-                        </time>
-                      </div>
-                      {(["desk", "general"] as const).map((role) => (
-                        <p key={role} className={`shift-line ${role === "desk" ? "is-desk" : "is-standby"}`}>
-                          <span className="shift-role">{role === "desk" ? "데스크" : "대기"}</span>
-                          <span className="duty-people">{people(key, role)}</span>
-                        </p>
-                      ))}
-                    </article>
-                  );
-                })}
-              </div>
-            </>
-          ) : (
-            <Loading error={status.error || staff.error} retry={retryStatus} />
-          )}
-        </section>
-        <section className="card duty-card" aria-labelledby="duty-title">
-          <div className="card-head">
-            <h2 id="duty-title">오늘의 당직</h2>
-            {user.role === "admin" && (
-              <button className="btn small" onClick={() => setEditing(true)}>수정</button>
-            )}
-          </div>
-          {duty.data ? (
-            <>
-              <ResourceError error={duty.error} retry={duty.refresh} />
-              <dl className="duty-contact">
-                <div>
-                  <dt>담당쌤</dt>
-                  <dd className={duty.data.teacher ? undefined : "duty-empty"}>
-                    {duty.data.teacher || "아직 정해지지 않았어요"}
-                  </dd>
-                </div>
-                <div>
-                  <dt>내선번호</dt>
-                  <dd className={duty.data.extension ? undefined : "duty-empty"}>
-                    {duty.data.extension || "미등록"}
-                  </dd>
-                </div>
-                <div>
-                  <dt>휴대폰</dt>
-                  <dd className={duty.data.phone ? "duty-phone" : "duty-empty"}>
-                    {duty.data.phone ? (
-                      <>
-                        {duty.data.phone}
-                        <a className="btn call-btn" href={`tel:${duty.data.phone}`}>
-                          <Icon name="phone" />
-                          전화
-                        </a>
-                      </>
-                    ) : (
-                      "미등록"
-                    )}
-                  </dd>
-                </div>
-              </dl>
-            </>
-          ) : (
-            <Loading error={duty.error} retry={duty.refresh} />
-          )}
-        </section>
-      </div>
-      <section className="card issues-card" aria-labelledby="today-issues-title">
-        <div className="card-head">
-          <h2 id="today-issues-title">
-            <button className="title-link" onClick={showIssues} aria-label="오늘의 이슈 · 주간 이슈로 이동">
-              오늘의 이슈 <Icon name="chevron" />
-            </button>
-          </h2>
-          {user.role !== "viewer" && (
-            <button className="btn small" onClick={() => setAddingIssue(true)}>
-              <Icon name="plus" />
-              새 이슈
-            </button>
-          )}
-        </div>
-        <TodayIssues resource={dailyIssues} user={user} onChanged={issues.refresh} />
-      </section>
-      {dialogs}
+      {editing && <DutyEditor onClose={() => setEditing(false)} onSaved={duty.refresh} />}
     </section>
   );
 }

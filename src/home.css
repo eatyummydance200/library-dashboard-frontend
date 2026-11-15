@@ -1,0 +1,18 @@
+/* 홈 (Figma 모바일 55083:2 · 데스크톱 55089:1735). 카드·행·배지는 tds.css, 여기는 배치만. */
+.home-col{display:flex;flex-direction:column;gap:12px;min-width:0}
+.home-grid{display:grid;grid-template-columns:minmax(0,7fr) minmax(0,4fr);gap:16px;align-items:start}
+.home-card{padding-bottom:12px}
+.home-card .list-header{padding-bottom:4px}
+.home-empty{margin:0;padding:12px 24px;font-size:15px;color:var(--text-3)}
+.home-next-at{color:var(--brand);font-variant-numeric:tabular-nums}
+.home-more{display:inline-flex;align-items:center;gap:2px;min-height:var(--tap);padding:0;border:0;background:none;color:var(--text-3);font-size:14px}
+.home-call{display:inline-flex;align-items:center;min-width:64px;justify-content:center;padding:0 14px;text-decoration:none}
+.home-card-foot{display:flex;justify-content:center;padding:4px 24px 0}
+.home-wide{width:100%;min-height:48px;font-size:16px}
+.home-add{min-height:var(--tap);padding:0 12px;border:0;background:none;font-size:16px;font-weight:600}
+@media(max-width:899px){
+  .home .page-top{background:#fff}
+  .home-col{padding:0 12px}
+  .home-empty{padding:12px 20px}
+  .home-card-foot{padding:4px 20px 0}
+}

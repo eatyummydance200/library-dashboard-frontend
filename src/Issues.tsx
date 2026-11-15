@@ -1,13 +1,13 @@
 import { useEffect, useState } from "react";
 import { api, message, useResource } from "./api";
 import type { Issue, User } from "./types";
-import { addDays, dateTime, days, koreaParts, monday, shortDay, today, weekLabel } from "./dates";
-import { DayStrip, todayIndex } from "./DayStrip";
+import { addDays, days, koreaParts, monday, shortDay, today, weekLabel } from "./dates";
+import { todayIndex } from "./DayStrip";
+import { Chips, PageTop, Segmented, Tabs } from "./tds";
 import "./screens.css";
 import {
   Action,
   Field,
-  Fold,
   Form,
   Icon,
   Loading,
@@ -20,17 +20,28 @@ import {
 } from "./ui";
 
 type IssuesResource = ReturnType<typeof useResource<Issue[]>>;
-const filters = [
-  ["all", "전체"],
-  ["open", "진행 중"],
-  ["done", "완료"],
+type Filter = "all" | "open" | "done";
+// 구분별 아이콘·설명 (목록 행과 이슈 남기기 창이 함께 쓴다)
+const categories = [
+  { key: "인계", icon: "swap", desc: "다음 근무자에게 넘길 일" },
+  { key: "공지", icon: "megaphone", desc: "모두가 알아야 할 소식" },
+  { key: "시설", icon: "gear", desc: "고장·수리가 필요한 곳" },
 ] as const;
-// 데이터(주간 이슈·필터·추가 창)는 여기 하나. 웹은 5요일 보드, 모바일은 DayStrip + 하루 리스트
+const categoryIcon = (category: string) => categories.find((item) => item.key === category)?.icon ?? "message";
+const filterItems = (list: Issue[], counts: boolean) =>
+  (
+    [
+      ["all", "전체", list.length],
+      ["open", "진행 중", list.filter((issue) => !issue.done).length],
+      ["done", "완료", list.filter((issue) => issue.done).length],
+    ] as const
+  ).map(([key, label, count]) => ({ key, label: counts ? `${label} ${count}` : label }));
+// 데이터(주간 이슈·필터·추가 창)는 여기 하나. 웹은 5요일 카드, 모바일은 요일 탭 + 하루 목록
 export default function Issues({ resource, user }: { resource: IssuesResource; user: User }) {
   const mobile = useMobile();
   const [week, setWeek] = useState(monday());
   const weekly = useResource<Issue[]>(`/issues?week=${week}`);
-  const [filter, setFilter] = useState("all");
+  const [filter, setFilter] = useState<Filter>("all");
   const [adding, setAdding] = useState<string | null>(null);
   const [day, setDay] = useState(todayIndex);
   useEffect(() => {
@@ -45,78 +56,95 @@ export default function Issues({ resource, user }: { resource: IssuesResource; u
     };
   }, [weekly.refresh]);
   const dates = days.map((_, index) => addDays(week, index));
-  const list = (date: string, empty: string) => (
+  const now = today();
+  const of = (date: string) => weekly.data?.filter((issue) => covers(issue, date)) ?? [];
+  const list = (date: string, empty: string, icons: boolean) => (
     <IssueList
-      resource={{ ...weekly, error: undefined, data: weekly.data!.filter((issue) => covers(issue, date)) }}
+      resource={{ ...weekly, error: undefined, data: of(date) }}
       filter={filter}
       user={user}
       onChanged={resource.refresh}
       empty={empty}
+      icons={icons}
     />
   );
-  const segment = (
-    <div className="segment" role="group" aria-label="이슈 상태 필터">
-      {filters.map(([key, label]) => (
-        <button key={key} type="button" aria-pressed={filter === key} onClick={() => setFilter(key)}>
-          {label}
-        </button>
-      ))}
-    </div>
+  const stepper = (
+    <WeekStepper
+      label={mobile ? `${weekLabel(week)} · ${shortDay(week)} ~ ${shortDay(dates[4])}` : weekLabel(week)}
+      current={week === monday()}
+      onMove={(offset) => setWeek(addDays(week, offset * 7))}
+      onToday={() => {
+        setWeek(monday());
+        setDay(todayIndex());
+      }}
+      unit="주 이슈"
+    />
   );
+  const canAdd = user.role !== "viewer";
+  const left = weekly.data?.filter((issue) => !issue.done).length ?? 0;
+  const thisWeek = week === monday() ? "이번 주" : "이 주";
   return (
     <section className="view issues-view" aria-label="이슈">
       {mobile ? (
         <>
-          <DayStrip
-            week={week}
-            day={day}
-            onWeek={setWeek}
-            onDay={setDay}
-            label="이슈 요일 선택"
-            counts={dates.map((date) => weekly.data?.filter((issue) => covers(issue, date) && !issue.done).length ?? 0)}
+          <PageTop
+            upper={stepper}
+            title="이슈"
+            actions={canAdd && (
+              <button type="button" className="btn small" onClick={() => setAdding(dates[day])}>
+                남기기
+              </button>
+            )}
           />
-          <section className="card list-card" aria-label={`${shortDay(dates[day])} ${days[day]}요일 이슈`}>
-            {weekly.data ? (
-              <>
-                <ResourceError error={weekly.error} retry={weekly.refresh} />
-                {list(dates[day], filter === "all" ? "이 날은 남겨진 이슈가 없어요." : "해당하는 이슈가 없어요.")}
-              </>
-            ) : <Loading error={weekly.error} retry={weekly.refresh} />}
-          </section>
-          <Fold title={`보기 옵션 · ${filters.find(([key]) => key === filter)![1]}`}>{segment}</Fold>
-          {user.role !== "viewer" && (
-            <button type="button" className="btn primary fab" onClick={() => setAdding(dates[day])}>
-              <Icon name="plus" />
-              새 이슈
-            </button>
-          )}
+          <Tabs
+            fluid
+            label="이슈 요일 선택"
+            value={String(day)}
+            onChange={(key) => setDay(Number(key))}
+            items={dates.map((date, index) => ({
+              key: String(index),
+              label: `${days[index]} ${Number(date.slice(8))}`,
+              aria: `${shortDay(date)} ${days[index]}요일${date === now ? " · 오늘" : ""}`,
+            }))}
+          />
+          {weekly.data ? (
+            <div className="issues-day" role="tabpanel" aria-label={`${shortDay(dates[day])} ${days[day]}요일 이슈`}>
+              <Chips label="이슈 상태 필터" value={filter} onChange={setFilter} items={filterItems(of(dates[day]), true)} />
+              <ResourceError error={weekly.error} retry={weekly.refresh} />
+              {list(dates[day], filter === "all" ? "이 날은 남겨진 이슈가 없어요." : "해당하는 이슈가 없어요.", true)}
+            </div>
+          ) : <Loading error={weekly.error} retry={weekly.refresh} />}
         </>
       ) : (
         <>
-          <div className="view-toolbar">
-            <WeekStepper
-              label={weekLabel(week)}
-              current={week === monday()}
-              onMove={(offset) => setWeek(addDays(week, offset * 7))}
-              onToday={() => setWeek(monday())}
-              unit="주 이슈"
-            />
-            {segment}
-          </div>
+          <PageTop
+            title="이슈"
+            lower={weekly.data && (left ? `${thisWeek}에 ${left}건이 남아 있어요` : `${thisWeek} 이슈를 모두 마쳤어요`)}
+            actions={
+              <>
+                <Segmented label="이슈 상태 필터" value={filter} onChange={setFilter} items={filterItems([], false)} />
+                {stepper}
+                {canAdd && (
+                  <button type="button" className="btn primary" onClick={() => setAdding(dates.includes(now) ? now : week)}>
+                    이슈 남기기
+                  </button>
+                )}
+              </>
+            }
+          />
           {weekly.data ? (
             <>
               <ResourceError error={weekly.error} retry={weekly.refresh} />
-              <div className="issue-week-board">
+              <div className="issue-week">
                 {days.map((label, index) => {
                   const date = dates[index];
                   return (
-                    <section key={date} className={`issue-day-column${date === today() ? " is-today" : ""}`} aria-label={`${date} ${label}요일 이슈`}>
-                      <header className="issue-day-heading">
-                        <h3>{label}요일</h3>
-                        <time dateTime={date}>{shortDay(date)}{date === today() && " · 오늘"}</time>
-                        {user.role !== "viewer" && <button type="button" className="issue-day-add" aria-label={`${shortDay(date)} ${label}요일 이슈 추가`} onClick={() => setAdding(date)}>＋</button>}
+                    <section key={date} className={`tds-card issue-day${date === now ? " is-today" : ""}`} aria-label={`${date} ${label}요일 이슈`}>
+                      <header className="issue-day-head">
+                        <h2>{label} {shortDay(date)}</h2>
+                        {date === now && <span>오늘</span>}
                       </header>
-                      {list(date, "이 날은 남겨진 이슈가 없어요.")}
+                      {list(date, "이슈가 없어요.", false)}
                     </section>
                   );
                 })}
@@ -170,7 +198,7 @@ export function TodayIssues({ resource, user, onChanged }: {
 }) {
   return (
     <div className="today-issues">
-      <IssueList resource={resource} user={user} filter="all" onChanged={onChanged} empty="오늘 등록된 이슈가 없습니다. 조용한 하루예요!" />
+      <IssueList resource={resource} user={user} filter="all" onChanged={onChanged} empty="오늘 등록된 이슈가 없어요. 조용한 하루예요!" />
     </div>
   );
 }
@@ -179,13 +207,15 @@ export function IssueList({
   filter,
   onChanged,
   user,
-  empty = "해당하는 이슈가 없습니다.",
+  empty = "해당하는 이슈가 없어요.",
+  icons = true,
 }: {
   resource: IssuesResource;
   filter: string;
   onChanged?: () => Promise<void>;
   user: User;
   empty?: string;
+  icons?: boolean;
 }) {
   if (!resource.data)
     return <Loading error={resource.error} retry={resource.refresh} />;
@@ -196,71 +226,64 @@ export function IssueList({
   return (
     <>
       <ResourceError error={resource.error} retry={resource.refresh} />
-      <div className="issue-list">
+      <div className="issue-rows">
         {visible.map((issue) => (
           <IssueItem
             key={issue.id}
             issue={issue}
             user={user}
+            icon={icons}
             onChanged={async () => {
               await resource.refresh();
               await onChanged?.();
             }}
           />
         ))}
-        {!visible.length && (
-          <p className="shift-issue-empty">{empty}</p>
-        )}
+        {!visible.length && <p className="issue-empty">{empty}</p>}
       </div>
     </>
   );
 }
+// TDS List Row 모양: 구분 아이콘 · 제목/구분·시각 · ⋯ 메뉴 · 원형 체크. 행을 누르면 내용을 펼친다.
 function IssueItem({
   issue,
   user,
+  icon,
   onChanged,
 }: {
   issue: Issue;
   user: User;
+  icon: boolean;
   onChanged: () => Promise<void>;
 }) {
   const notice = useNotice();
   const [busy, setBusy] = useState(false);
+  const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState(false);
   const viewer = user.role === "viewer";
   const editable = !viewer && !issue.done && (user.role === "admin" || user.id === issue.author_id);
   const deletable = !viewer && (user.role === "admin" || (!issue.done && user.id === issue.author_id));
   return (
-    <article className={`issue-item${issue.done ? " is-done" : ""}`}>
-      <label className="issue-check-hit">
-      <input
-        type="checkbox"
-        className="issue-check"
-        checked={!!issue.done}
-        disabled={busy || viewer}
-        aria-label={issue.done ? `${issue.title} 다시 열기` : `${issue.title} 완료`}
-        onChange={async () => {
-          setBusy(true);
-          try {
-            await api(`/issues/${issue.id}`, "PATCH", { done: !issue.done });
-            await onChanged();
-          } catch (error) {
-            notice(message(error));
-          } finally {
-            setBusy(false);
-          }
-        }}
-      />
-      </label>
-      <div className="issue-main">
-        <h3 className="issue-heading">
-          <span className="issue-title-category">{issue.category}</span>{" "}
-          <span className="issue-title">{issue.title}</span>
-          {issue.end_day !== issue.day && <span className="issue-period">{shortDay(issue.day)}~{shortDay(issue.end_day)}</span>}
-          {issue.created_at && <time className="issue-time" dateTime={issue.created_at}>{createdLabel(issue)}</time>}
-        </h3>
-        <p className="issue-text">{issue.body}</p>
-      </div>
+    <article className={`issue-row${issue.done ? " is-done" : ""}`}>
+      <button type="button" className="issue-row-main" aria-expanded={open} onClick={() => setOpen(!open)}>
+        {icon && (
+          <span className="list-row-icon" aria-hidden="true">
+            <Icon name={categoryIcon(issue.category)} />
+          </span>
+        )}
+        <span className="list-row-text">
+          <span className="list-row-title issue-title">{issue.title}</span>
+          <span className="list-row-sub">
+            {issue.category} ·{" "}
+            {issue.end_day !== issue.day ? (
+              `${shortDay(issue.day)} ~ ${shortDay(issue.end_day)}`
+            ) : issue.created_at ? (
+              <time dateTime={issue.created_at}>{createdLabel(issue.created_at)}</time>
+            ) : shortDay(issue.day)}
+          </span>
+          <span className="issue-body" hidden={!open}>{issue.body}</span>
+        </span>
+      </button>
       {(editable || deletable) && (
         <IssueMenu
           onEdit={editable ? () => setEditing(true) : undefined}
@@ -271,14 +294,35 @@ function IssueItem({
           } : undefined}
         />
       )}
+      <label className="issue-check">
+        <input
+          type="checkbox"
+          className="tds-check"
+          checked={!!issue.done}
+          disabled={busy || viewer}
+          aria-label={issue.done ? `${issue.title} 다시 열기` : `${issue.title} 완료`}
+          onChange={async () => {
+            setBusy(true);
+            try {
+              await api(`/issues/${issue.id}`, "PATCH", { done: !issue.done });
+              await onChanged();
+            } catch (error) {
+              notice(message(error));
+            } finally {
+              setBusy(false);
+            }
+          }}
+        />
+      </label>
       {editing && <IssueEditor issue={issue} onClose={() => setEditing(false)} onSaved={onChanged} />}
     </article>
   );
 }
-// 작성 시각. 이슈 날짜와 같은 날 작성했으면 "14:32", 다른 날이면 "11. 3. 14:32"
-function createdLabel(issue: Issue) {
-  const p = koreaParts(new Date(issue.created_at));
-  return `${p.year}-${p.month}-${p.day}` === issue.day ? `${p.hour}:${p.minute}` : dateTime(issue.created_at);
+// 작성 시각(한국 시간). 오늘이면 "오늘 14:32", 아니면 "11.3 14:32"
+function createdLabel(value: string) {
+  const p = koreaParts(new Date(value));
+  const day = `${p.year}-${p.month}-${p.day}`;
+  return `${day === today() ? "오늘" : shortDay(day)} ${p.hour}:${p.minute}`;
 }
 function IssueMenu({ onEdit, onDelete }: { onEdit?: () => void; onDelete?: () => Promise<void> }) {
   return (
@@ -288,6 +332,7 @@ function IssueMenu({ onEdit, onDelete }: { onEdit?: () => void; onDelete?: () =>
     </Menu>
   );
 }
+const longDay = (date: string) => `${Number(date.slice(5, 7))}월 ${Number(date.slice(8))}일`;
 export function IssueEditor({
   onClose,
   onSaved,
@@ -305,11 +350,12 @@ export function IssueEditor({
   const [category, setCategory] = useState(issue?.category ?? initialCategory);
   const [selectedDay, setSelectedDay] = useState(issue?.day ?? day);
   const [endDay, setEndDay] = useState(issue?.end_day ?? issue?.day ?? day);
+  const [period, setPeriod] = useState(false);
   return (
-    <Modal title={issue ? "이슈 수정" : "새 이슈 남기기"} onClose={onClose}>
+    <Modal className="issue-editor" title={issue ? "이슈를 어떻게 고칠까요?" : "어떤 이슈를 남길까요?"} onClose={onClose}>
       <Form
         onClose={onClose}
-        submit={issue ? "저장하기" : "등록하기"}
+        submit={issue ? "저장하기" : `${category} 이슈 남기기`}
         onSave={async (data) => {
           const body = Object.fromEntries(["day", "end_day", "category", "title", "body"].map((key) => [key, value(data, key)]));
           await (issue ? api(`/issues/${issue.id}`, "PUT", body) : api("/issues", "POST", body));
@@ -318,33 +364,55 @@ export function IssueEditor({
           notice(issue ? "이슈를 수정했어요." : "이슈를 등록했어요.");
         }}
       >
-        <Field label="시작일">
-          <input name="day" type="date" required value={selectedDay} onChange={(event) => {
-            const start = event.target.value;
-            setSelectedDay(start);
-            if (start && endDay < start) setEndDay(start);
-          }} />
-        </Field>
-        <Field label="종료일">
-          <input name="end_day" type="date" required min={selectedDay} value={endDay} onChange={(event) => setEndDay(event.target.value)} />
-        </Field>
-        <fieldset className="field choice-chips">
-          <legend>구분</legend>
-          <div>
-            {["인계", "공지", "시설"].map((option) => (
-              <label key={option}>
-                <input type="radio" name="category" value={option} checked={category === option} onChange={() => setCategory(option)} />
-                {option}
-              </label>
-            ))}
-          </div>
+        <fieldset className="issue-kinds">
+          <legend className="sr-only">구분</legend>
+          {categories.map((option) => (
+            <label key={option.key} className="issue-kind">
+              <span className="list-row-icon" aria-hidden="true">
+                <Icon name={option.icon} />
+              </span>
+              <span className="list-row-text">
+                <span className="list-row-title">{option.key}</span>
+                <span className="list-row-sub">{option.desc}</span>
+              </span>
+              <input
+                type="radio"
+                className="tds-check"
+                name="category"
+                value={option.key}
+                checked={category === option.key}
+                onChange={() => setCategory(option.key)}
+              />
+            </label>
+          ))}
         </fieldset>
         <Field label="제목">
-          <input name="title" required maxLength={80} placeholder="한 줄로 요약해 주세요" defaultValue={issue?.title} />
+          <input name="title" required maxLength={80} placeholder="예) 3층 열람석 분실물 보관 중" defaultValue={issue?.title} />
         </Field>
         <Field label="내용">
           <textarea name="body" required maxLength={1500} placeholder="다음 근무자가 알아야 할 내용을 적어 주세요" defaultValue={issue?.body} />
         </Field>
+        <div className="issue-period-row">
+          <p>
+            <strong>{endDay === selectedDay ? `${longDay(selectedDay)} 하루` : `${longDay(selectedDay)} ~ ${longDay(endDay)}`}</strong>
+            <span>기간</span>
+          </p>
+          <button type="button" className="btn small weak" aria-expanded={period} onClick={() => setPeriod(!period)}>
+            기간 바꾸기
+          </button>
+        </div>
+        <div className="issue-period-fields" hidden={!period}>
+          <Field label="시작일">
+            <input name="day" type="date" required value={selectedDay} onChange={(event) => {
+              const start = event.target.value;
+              setSelectedDay(start);
+              if (start && endDay < start) setEndDay(start);
+            }} />
+          </Field>
+          <Field label="종료일">
+            <input name="end_day" type="date" required min={selectedDay} value={endDay} onChange={(event) => setEndDay(event.target.value)} />
+          </Field>
+        </div>
       </Form>
     </Modal>
   );

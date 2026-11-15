@@ -8,11 +8,11 @@ export const INQUIRY_CATEGORIES = [
   ["other", "기타"],
 ] as const;
 
-// 우측 하단 고정 "문의" 버튼의 팝업. 보내면 닫고 토스트로 알린다(기록은 보여 주지 않는다).
+// 사이드 메뉴·전체 화면의 "개발자에게 문의" 대화상자. 보내면 닫고 토스트로 알린다(기록은 보여 주지 않는다).
 export default function InquiryDialog({ onClose }: { onClose: () => void }) {
   const notice = useNotice();
   return (
-    <Modal title="개발자에게 문의" onClose={onClose} className="inquiry-popup">
+    <Modal title="개발자에게 문의" onClose={onClose}>
       <Form
         onClose={onClose}
         submit="보내기"
@@ -37,7 +37,7 @@ export default function InquiryDialog({ onClose }: { onClose: () => void }) {
           <input name="title" required maxLength={80} placeholder="한 줄로 요약해 주세요" />
         </Field>
         <Field label="내용">
-          <textarea name="body" required maxLength={2000} placeholder="어느 화면에서 무엇을 했을 때 어떻게 됐는지, 또는 무엇이 필요한지 적어 주세요" />
+          <textarea name="body" required maxLength={2000} placeholder="어느 화면에서 무엇을 했더니 어떻게 됐는지 적어 주세요" />
         </Field>
         <p className="hint">보내면 개발자에게 바로 알림이 가요.</p>
       </Form>
