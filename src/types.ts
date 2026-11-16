@@ -115,3 +115,34 @@ export interface ManualData {
   updated_at: string | null;
   updated_by: string | null;
 }
+export type RegulationsData = ManualData;
+export interface Extension {
+  number: string;
+  place: string;
+}
+export interface ChatAnswer {
+  id: number;
+  outcome: "answered" | "not_found" | "refused";
+  answer: string;
+  sections: string[];
+  extensions: Extension[];
+  today_count: number;
+  warn: boolean;
+}
+export interface QuestionRecord {
+  id: number;
+  username: string;
+  question: string;
+  outcome: ChatAnswer["outcome"];
+  answer: string;
+  sections: string[];
+  extensions: Extension[];
+  created_at: string;
+  flagged_at: string | null;
+  flag_note: string | null;
+  resolved_at: string | null;
+}
+export interface QuestionLog {
+  summary: { today_count: number; month_count: number; month_cost_usd: number };
+  items: QuestionRecord[];
+}

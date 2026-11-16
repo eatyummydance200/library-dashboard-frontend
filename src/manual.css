@@ -127,7 +127,7 @@
 
 /* ---------- 모바일: 흰 화면, 섹션 사이 굵은 회색 줄 ---------- */
 @media(max-width:899px){
-  body[data-page=manual]{background:#fff}
+  body[data-page=manual],body[data-page=regulations]{background:#fff}
   .mnl.view,.mnl-read,.mnl-main{gap:0}
   .mnl .tds-card{border-radius:0}
   .mnl .tds-card+.tds-card{border-top:12px solid var(--canvas)}

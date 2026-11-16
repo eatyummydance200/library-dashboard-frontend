@@ -21,6 +21,8 @@ import People from "./People";
 import Issues from "./Issues";
 import Monthly from "./Monthly";
 import Manual from "./Manual";
+import Regulations from "./Regulations";
+import Chatbot from "./Chatbot";
 import More, { roleLabel } from "./More";
 import InquiryDialog from "./Inquiries";
 
@@ -35,6 +37,7 @@ const primary = [
 const secondary = [
   ["people", "인적관리", "people"],
   ["manual", "매뉴얼", "book"],
+  ["regulations", "규정", "phone"],
 ] as const;
 export type View = (typeof primary)[number][0] | (typeof secondary)[number][0] | "more";
 type IconName = keyof typeof icons;
@@ -243,8 +246,9 @@ function NavRow({ icon, label, sub, tail, current, onClick, quiet, aria }: {
 }
 
 function Workspace({ user, onLogout }: { user: User; onLogout: () => void }) {
-  const manualHash = () => window.location.hash.startsWith("#manual");
-  const [view, setView] = useState<View>(() => (manualHash() ? "manual" : "dashboard"));
+  // #manual/2-1, #regulations/5 같은 섹션 링크로 바로 연다
+  const docHash = () => /^#(manual|regulations)(?:\/|$)/.exec(window.location.hash)?.[1] as "manual" | "regulations" | undefined;
+  const [view, setView] = useState<View>(() => docHash() ?? "dashboard");
   const [dialog, setDialog] = useState<Dialog | null>(null);
   const issues = useResource<Issue[]>("/issues");
   const [slot, setSlot] = useState<HTMLElement | null>(null);
@@ -252,14 +256,15 @@ function Workspace({ user, onLogout }: { user: User; onLogout: () => void }) {
   const mobile = useMobile();
   useEffect(() => {
     document.body.dataset.page = view;
-    if (view !== "manual" && manualHash())
+    if (docHash() && docHash() !== view)
       window.history.replaceState(null, "", window.location.pathname);
     // 탭을 바꾸면 새 화면의 맨 위부터 보여준다 (매뉴얼은 #manual/섹션으로 직접 스크롤)
     window.scrollTo?.(0, 0);
   }, [view]);
   useEffect(() => {
     const open = () => {
-      if (manualHash()) setView("manual");
+      const target = docHash();
+      if (target) setView(target);
     };
     window.addEventListener("hashchange", open);
     return () => window.removeEventListener("hashchange", open);
@@ -297,7 +302,7 @@ function Workspace({ user, onLogout }: { user: User; onLogout: () => void }) {
       lock.current = false;
     }
   }
-  const inMore = view === "more" || view === "people" || view === "manual";
+  const inMore = view === "more" || view === "people" || view === "manual" || view === "regulations";
   return (
     <div className="shell">
       {!mobile && (
@@ -332,7 +337,7 @@ function Workspace({ user, onLogout }: { user: User; onLogout: () => void }) {
         </nav>
       )}
       <main className="shell-main">
-        {mobile && (view === "people" || view === "manual") && (
+        {mobile && inMore && view !== "more" && (
           <button type="button" className="shell-back" aria-label="전체로 돌아가기" onClick={() => setView("more")}>
             <Icon name="left" />
           </button>
@@ -347,6 +352,7 @@ function Workspace({ user, onLogout }: { user: User; onLogout: () => void }) {
           {view === "issues" && <Issues resource={issues} user={user} />}
           {view === "monthly" && <Monthly user={user} />}
           {view === "manual" && <Manual user={user} />}
+          {view === "regulations" && <Regulations user={user} />}
           {view === "more" && (
             <More user={user} open={(key) => setView(key)} dialog={setDialog} logout={logout} />
           )}
@@ -397,6 +403,7 @@ function Workspace({ user, onLogout }: { user: User; onLogout: () => void }) {
           </div>
         </Modal>
       )}
+      {!viewer && <Chatbot />}
       {!viewer && (
         <button type="button" className="inquiry-fab" aria-label="개발자에게 문의" onClick={() => setDialog("inquiry")}>
           <Icon name="headset" />

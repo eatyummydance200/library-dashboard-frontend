@@ -126,6 +126,56 @@ body.login-page{background:#fff}
   .dialog.inquiry-chat::backdrop{background:#0000001f}
 }
 
+/* ---------- 전화 응대 도우미: 문의 버튼 바로 위 버튼 + 비모달 패널(데스크톱 우하단, 모바일 하단 시트) ---------- */
+.inquiry-fab.is-chatbot{bottom:92px}
+.chatbot{position:fixed;z-index:40;right:24px;bottom:24px;display:flex;flex-direction:column;gap:12px;width:400px;height:min(680px,calc(100dvh - 48px));padding:20px 20px 16px;border-radius:24px;background:#fff;box-shadow:0 12px 40px #102b5733;animation:dialog-in .22s var(--ease)}
+.chatbot .dialog-head{margin:0}
+.chatbot .inline-error{margin:0}
+.chatbot-log{display:flex;flex-direction:column;gap:16px;flex:1;min-height:120px;overflow:auto;overscroll-behavior:contain}
+.chatbot-turn{display:flex;flex-direction:column;gap:8px}
+.chatbot-turn .chat-bubble.is-mine{margin:0}
+.chatbot-answer{display:grid;gap:8px;justify-items:start;margin:0;overflow-wrap:anywhere}
+.chatbot-bot{display:flex;align-items:flex-start;gap:8px;max-width:94%}
+.chatbot-avatar{flex:none;width:36px;height:36px;object-fit:contain}
+.chatbot-thinking{display:inline-flex;align-items:center;gap:6px;margin:0;color:var(--text-3);font-size:14px}
+.chatbot-dots{display:inline-flex;gap:3px}
+.chatbot-dots i{width:5px;height:5px;border-radius:50%;background:var(--blue500);animation:bot-dot 1.2s ease-in-out infinite}
+.chatbot-dots i:nth-child(2){animation-delay:.15s}
+.chatbot-dots i:nth-child(3){animation-delay:.3s}
+@keyframes bot-dot{0%,60%,100%{opacity:.3;transform:translateY(0)}30%{opacity:1;transform:translateY(-4px)}}
+@media (prefers-reduced-motion:reduce){.chatbot-dots i{animation:none}.chatbot-dots i{opacity:.6}}
+.chatbot-bot-body{display:flex;flex-direction:column;align-items:flex-start;gap:6px;min-width:0}
+.chatbot-name{color:var(--text-3);font-size:12px;font-weight:600}
+.answer-summary{margin:0;font-weight:700;font-size:15px}
+.answer-points{display:grid;gap:4px;margin:0;padding:0;list-style:none;font-size:14px}
+.answer-points li{position:relative;padding-left:14px}
+.answer-points li::before{content:"-";position:absolute;left:2px;color:var(--text-3)}
+.answer-points b{font-weight:650}
+.chatbot-ext{display:flex;align-items:center;gap:6px;margin:2px 0 0;padding:6px 10px;border-radius:10px;background:#fff;font-size:14px}
+.chatbot-ext svg{width:14px;height:14px;color:var(--blue500)}
+.chatbot-ext strong{font-size:16px}
+.chatbot-src{color:var(--text-3);font-size:11px;line-height:1.4}
+.chatbot-warn{padding:10px 12px;border-radius:12px;background:var(--yellow50);color:var(--grey800);font-size:14px}
+.chatbot-flag{font-size:14px;color:var(--text-2)}
+.chatbot-flag .text-btn,.chatbot-flag-btn{min-height:32px;font-size:14px}
+.chatbot-flag-btn{align-self:flex-start;color:var(--text-3)}
+.chatbot-note{display:grid;gap:8px}
+.chatbot-note>div{display:flex;justify-content:flex-end;gap:8px}
+.chatbot-note textarea{width:100%;padding:10px 14px;border:0;border-radius:14px;background:var(--grey100);color:var(--ink);font-size:15px;resize:none}
+.chatbot-note textarea:focus{outline:none;background:#fff;box-shadow:inset 0 0 0 2px var(--blue500)}
+.chatbot-form{display:flex;align-items:flex-end;gap:6px;padding:6px 6px 6px 14px;border-radius:18px;background:var(--grey100)}
+.chatbot-form:focus-within{background:#fff;box-shadow:inset 0 0 0 2px var(--blue500)}
+.chatbot-form textarea{flex:1;min-height:40px;max-height:120px;padding:9px 0;border:0;background:none;color:var(--ink);font-size:16px;line-height:1.4;resize:none}
+.chatbot-form textarea:focus{outline:none}
+.chatbot-send{display:grid;place-items:center;flex:none;width:40px;height:40px;padding:0;border:0;background:none;color:var(--blue500);cursor:pointer}
+.chatbot-send:disabled{color:var(--grey400);cursor:default;opacity:1}
+.chatbot-send svg{width:24px;height:24px}
+.qlog-answer{white-space:pre-line}
+@media(max-width:899px){
+  .inquiry-fab.is-chatbot{bottom:calc(var(--tabbar) + 80px + var(--safe-bottom))}
+  .chatbot{left:0;right:0;bottom:0;width:auto;height:85dvh;padding:16px 16px calc(16px + var(--safe-bottom));border-radius:24px 24px 0 0}
+}
+
 /* ---------- 모션: 알림은 아래에서 올라오고, 대화상자는 살짝 커지며(모바일은 아래에서) 나타난다 ---------- */
 .toast{animation:toast-in .25s cubic-bezier(.2,.8,.2,1)}
 @keyframes toast-in{from{opacity:0;transform:translate(-50%,12px)}}
