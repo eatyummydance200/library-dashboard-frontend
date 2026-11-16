@@ -141,3 +141,18 @@
 .draw-confetti span{position:absolute;top:-16px;width:9px;height:14px;border-radius:2px;animation:draw-fall 1.9s cubic-bezier(.3,.1,.7,1) forwards}
 .draw-confetti span:nth-child(3n){width:10px;height:10px;border-radius:50%}
 @keyframes draw-fall{to{transform:translate(var(--drift),105vh) rotate(var(--spin));opacity:.2}}
+
+/* ---------- 규정: 관리자 탭 + 질문 기록 ---------- */
+@media(min-width:900px){.regulations-view>.tds-tabs{align-self:flex-start;width:420px;padding:0}}
+.regulations-view>[role=tabpanel]>.view{animation:none}
+.qlog{display:flex;flex-direction:column;gap:14px;padding-top:16px}
+.qlog-filters{padding:20px 24px 8px}
+.qlog-list{margin:0;padding:0 0 8px;list-style:none}
+.qlog-list .list-row{align-items:flex-start;padding-top:12px;padding-bottom:12px}
+.qlog-list .list-row-title .tds-badge{vertical-align:middle}
+.qlog-line{display:block}
+@media(max-width:899px){
+  body[data-page=regulations]{background:#fff}
+  .qlog .tds-card{border-radius:0}
+  .qlog-filters{padding:12px 20px 4px}
+}

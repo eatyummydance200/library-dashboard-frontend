@@ -9,27 +9,47 @@ import { highlight, inline, parse, search, sections, terms } from "./markdown";
 import type { Block, Heading, List, Span } from "./markdown";
 import "./manual.css";
 
-const shortcuts = [
-  ["오픈", "2"],
-  ["마감", "3"],
-  ["전화 왔을 때", "8"],
-  ["택배 가방 도착", "5-2"],
-  ["잡지 입수", "4-4"],
-  ["이용자 문의", "7-1"],
-  ["누구에게 물어보지?", "7-4"],
-] as const;
-const anchor = (id: string) => `manual-${id}`;
+// 매뉴얼과 규정이 같은 화면을 쓴다. name은 받침 있는 낱말이라 "이/을"을 붙인다.
+export interface DocConfig {
+  path: string; // API 경로 (GET/PUT)
+  name: string;
+  hash: string; // #hash, #hash/섹션
+  title: string;
+  lower: string;
+  example: string; // 검색 예시
+  shortcuts: readonly (readonly [string, string])[]; // [이름, 섹션 id]
+  images: boolean; // 편집기 "이미지 넣기"
+}
+export const MANUAL: DocConfig = {
+  path: "/manual",
+  name: "매뉴얼",
+  hash: "manual",
+  title: "연속간행물실 근로 매뉴얼",
+  lower: "업무 순서와 이용자 응대 방법을 장별로 정리했어요",
+  example: "택배 반송",
+  shortcuts: [
+    ["오픈", "2"],
+    ["마감", "3"],
+    ["전화 왔을 때", "8"],
+    ["택배 가방 도착", "5-2"],
+    ["잡지 입수", "4-4"],
+    ["이용자 문의", "7-1"],
+    ["누구에게 물어보지?", "7-4"],
+  ],
+  images: true,
+};
 
-export default function Manual({ user }: { user: User }) {
-  const manual = useResource<ManualData>("/manual");
+export default function Manual({ user, doc = MANUAL }: { user: User; doc?: DocConfig }) {
+  const manual = useResource<ManualData>(doc.path);
   const [editing, setEditing] = useState(false);
   const onEdit = user.role === "admin" && !editing ? () => setEditing(true) : undefined;
   return (
-    <section className="view mnl" aria-label="매뉴얼">
+    <section className="view mnl" aria-label={doc.name}>
       {!manual.data ? (
         <Loading error={manual.error} retry={manual.refresh} />
       ) : editing ? (
         <ManualEditor
+          doc={doc}
           initial={manual.data.content}
           onClose={() => setEditing(false)}
           onSaved={(saved) => {
@@ -38,7 +58,7 @@ export default function Manual({ user }: { user: User }) {
           }}
         />
       ) : (
-        <ManualViewer data={manual.data} onEdit={onEdit} />
+        <ManualViewer doc={doc} data={manual.data} onEdit={onEdit} />
       )}
     </section>
   );
@@ -55,7 +75,9 @@ export function updatedLine(at: string | null, by: string | null) {
   return `${when} ${by}${josa} 고쳤어요`;
 }
 
-function ManualViewer({ data, onEdit }: { data: ManualData; onEdit?: () => void }) {
+function ManualViewer({ doc, data, onEdit }: { doc: DocConfig; data: ManualData; onEdit?: () => void }) {
+  const { hash, name } = doc;
+  const anchor = (id: string) => `${hash}-${id}`;
   const notice = useNotice();
   const mobile = useMobile();
   const blocks = useMemo(() => parse(data.content), [data.content]);
@@ -98,7 +120,7 @@ function ManualViewer({ data, onEdit }: { data: ManualData; onEdit?: () => void 
   const page = pageIndex >= 0 ? pages[pageIndex] : undefined;
   function goHome() {
     setPageId("");
-    history.replaceState(null, "", "#manual");
+    history.replaceState(null, "", `#${hash}`);
     window.scrollTo({ top: 0 });
   }
 
@@ -110,7 +132,7 @@ function ManualViewer({ data, onEdit }: { data: ManualData; onEdit?: () => void 
     if (target === undefined) return;
     setPageId(target);
     setJump({ id });
-    history.replaceState(null, "", `#manual/${id}`);
+    history.replaceState(null, "", `#${hash}/${id}`);
   }
   useLayoutEffect(() => {
     if (!jump) return;
@@ -127,21 +149,22 @@ function ManualViewer({ data, onEdit }: { data: ManualData; onEdit?: () => void 
     element.classList.add("mnl-flash");
   }, [jump, pageOf]);
   async function copy(id: string) {
-    const url = `${location.origin}${location.pathname}#manual/${id}`;
+    const url = `${location.origin}${location.pathname}#${hash}/${id}`;
     try {
       await navigator.clipboard.writeText(url);
       notice("섹션 링크를 복사했어요.");
     } catch {
-      history.replaceState(null, "", `#manual/${id}`);
+      history.replaceState(null, "", `#${hash}/${id}`);
       notice("복사하지 못했어요. 주소창의 링크를 써 주세요.");
     }
   }
 
   useEffect(() => {
     const open = () => {
-      const id = /^#manual\/(.+)$/.exec(location.hash)?.[1];
+      const prefix = `#${hash}/`;
+      const id = location.hash.startsWith(prefix) ? location.hash.slice(prefix.length) : "";
       if (id) go(decodeURIComponent(id));
-      else if (location.hash === "#manual") setPageId("");
+      else if (location.hash === `#${hash}`) setPageId("");
     };
     open();
     window.addEventListener("hashchange", open);
@@ -196,7 +219,7 @@ function ManualViewer({ data, onEdit }: { data: ManualData; onEdit?: () => void 
   const [open, setOpen] = useState(false);
   const link = (id: string, className: string, body: ReactNode) => (
     <a
-      href={`#manual/${id}`}
+      href={`#${hash}/${id}`}
       className={className}
       aria-current={current === id ? "location" : undefined}
       onClick={(event) => {
@@ -210,11 +233,11 @@ function ManualViewer({ data, onEdit }: { data: ManualData; onEdit?: () => void 
     </a>
   );
   const nav = (
-    <nav aria-label="매뉴얼 목차">
+    <nav aria-label={`${name} 목차`}>
       <ol className="mnl-nav">
         <li>
           <a
-            href="#manual"
+            href={`#${hash}`}
             className="mnl-nav-chapter"
             onClick={(event) => {
               event.preventDefault();
@@ -222,7 +245,7 @@ function ManualViewer({ data, onEdit }: { data: ManualData; onEdit?: () => void 
               goHome();
             }}
           >
-            매뉴얼 홈
+            {name} 홈
           </a>
         </li>
         {chapters.map((chapter) => (
@@ -243,14 +266,14 @@ function ManualViewer({ data, onEdit }: { data: ManualData; onEdit?: () => void 
 
   const editButton = onEdit && (
     <button type="button" className="btn small weak" onClick={onEdit}>
-      매뉴얼 편집
+      {name} 편집
     </button>
   );
   const top = (
     <PageTop
       upper={updatedLine(data.updated_at, data.updated_by)}
-      title="연속간행물실 근로 매뉴얼"
-      lower="업무 순서와 이용자 응대 방법을 장별로 정리했어요"
+      title={doc.title}
+      lower={doc.lower}
       actions={editButton}
     />
   );
@@ -260,18 +283,18 @@ function ManualViewer({ data, onEdit }: { data: ManualData; onEdit?: () => void 
         {top}
         <Card className="mnl-empty">
           <Icon name="book" />
-          <p>아직 등록된 매뉴얼이 없어요</p>
+          <p>아직 등록된 {name}이 없어요</p>
           {onEdit ? (
             <button type="button" className="btn primary" onClick={onEdit}>
-              매뉴얼 작성하기
+              {name} 작성하기
             </button>
           ) : (
-            <p className="mnl-hint">관리자가 매뉴얼을 올리면 여기에서 볼 수 있어요.</p>
+            <p className="mnl-hint">관리자가 {name}을 올리면 여기에서 볼 수 있어요.</p>
           )}
         </Card>
       </>
     );
-  const chips = shortcuts.filter(([, id]) => ids.has(id));
+  const chips = doc.shortcuts.filter(([, id]) => ids.has(id));
   const pick = (id: string) => {
     setOpen(false);
     input.current?.blur();
@@ -286,15 +309,15 @@ function ManualViewer({ data, onEdit }: { data: ManualData; onEdit?: () => void 
     >
       <label className="mnl-search">
         <Icon name="search" />
-        <span className="sr-only">매뉴얼 검색</span>
+        <span className="sr-only">{name} 검색</span>
         <input
           ref={input}
           type="search"
           value={query}
-          placeholder={mobile ? "무엇이 궁금한가요?" : "무엇이 궁금한가요? 예) 택배 반송"}
+          placeholder={mobile ? "무엇이 궁금한가요?" : `무엇이 궁금한가요? 예) ${doc.example}`}
           aria-keyshortcuts="/"
           aria-expanded={open && words.length > 0}
-          aria-controls="manual-results"
+          aria-controls={`${hash}-results`}
           enterKeyHint="search"
           onFocus={() => setOpen(true)}
           onChange={(event) => {
@@ -314,7 +337,7 @@ function ManualViewer({ data, onEdit }: { data: ManualData; onEdit?: () => void 
         {!query && <kbd aria-hidden="true">/</kbd>}
       </label>
       {open && words.length > 0 && (
-        <div className="mnl-results" id="manual-results" role="region" aria-label="검색 결과">
+        <div className="mnl-results" id={`${hash}-results`} role="region" aria-label="검색 결과">
           {results.length ? (
             <ul>
               {results.map(({ section, snippet }) => (
@@ -381,7 +404,7 @@ function ManualViewer({ data, onEdit }: { data: ManualData; onEdit?: () => void 
   const currentChapter = chapters.find((chapter) => chapter.id === page.id);
   return (
     <div className="mnl-read">
-      <h1 className="sr-only">연속간행물실 근로 매뉴얼</h1>
+      <h1 className="sr-only">{doc.title}</h1>
       {!mobile && <aside className="tds-card mnl-side">{nav}</aside>}
       <div className="mnl-main">
         <Card className="mnl-find is-compact" label="찾기">
@@ -400,20 +423,20 @@ function ManualViewer({ data, onEdit }: { data: ManualData; onEdit?: () => void 
           <div className="mnl-doc-top">
             <nav className="mnl-crumb" aria-label="현재 위치">
               <a
-                href="#manual"
+                href={`#${hash}`}
                 onClick={(event) => {
                   event.preventDefault();
                   goHome();
                 }}
               >
-                매뉴얼
+                {name}
               </a>
               <Icon name="chevron" />
               <span>{currentChapter?.name}</span>
             </nav>
             {editButton}
           </div>
-          <ManualDocument blocks={page.blocks} words={words} onCopy={copy} />
+          <ManualDocument blocks={page.blocks} words={words} onCopy={copy} hash={hash} />
           <nav className="mnl-pager" aria-label="장 이동">
             {[pages[pageIndex - 1], pages[pageIndex + 1]].map((target, side) =>
               target ? (
@@ -475,10 +498,12 @@ export function ManualDocument({
   blocks,
   words = [],
   onCopy,
+  hash = "manual",
 }: {
   blocks: Block[];
   words?: string[];
   onCopy?: (id: string) => void;
+  hash?: string; // 제목 id 접두어
 }) {
   const listNode = (list: List, key: number) => {
     const items = list.items.map((item, index) => (
@@ -498,7 +523,7 @@ export function ManualDocument({
       case "heading": {
         const Tag = (["h2", "h3", "h4"] as const)[block.level - 1];
         return (
-          <Tag key={index} id={block.level < 3 ? anchor(block.id) : undefined} className="manual-heading">
+          <Tag key={index} id={block.level < 3 ? `${hash}-${block.id}` : undefined} className="manual-heading">
             {block.number && <span className="manual-num">{block.number}</span>}
             <span><Marked text={block.title} words={words} /></span>
             <Stars count={block.stars} />
@@ -523,7 +548,7 @@ export function ManualDocument({
       case "callout":
         return (
           <aside key={index} className={`manual-callout${block.warning ? " warning" : ""}`}>
-            <ManualDocument blocks={block.blocks} words={words} />
+            <ManualDocument blocks={block.blocks} words={words} hash={hash} />
           </aside>
         );
       case "table":
@@ -546,11 +571,13 @@ export function ManualDocument({
 }
 
 const imageTypes = "image/png,image/jpeg,image/gif,image/webp";
-function ManualEditor({
+export function ManualEditor({
+  doc,
   initial,
   onClose,
   onSaved,
 }: {
+  doc: DocConfig;
   initial: string;
   onClose: () => void;
   onSaved: (data: ManualData) => void;
@@ -595,34 +622,38 @@ function ManualEditor({
   return (
     <>
       <PageTop
-        title="매뉴얼 편집"
+        title={`${doc.name} 편집`}
         lower="왼쪽에 쓰면 오른쪽에서 바로 미리 볼 수 있어요"
         actions={
           <>
-            <input
-              ref={file}
-              type="file"
-              accept={imageTypes}
-              multiple
-              hidden
-              onChange={async (event) => {
-                const picked = [...(event.currentTarget.files ?? [])];
-                event.currentTarget.value = "";
-                if (!picked.length) return;
-                setUploading(true);
-                try {
-                  await insertImages(picked);
-                } catch (error) {
-                  notice(message(error));
-                } finally {
-                  setUploading(false);
-                }
-              }}
-            />
-            <button type="button" className="btn small" disabled={uploading} onClick={() => file.current?.click()}>
-              <Icon name="plus" />
-              {uploading ? "올리는 중…" : "이미지 넣기"}
-            </button>
+            {doc.images && (
+              <>
+                <input
+                  ref={file}
+                  type="file"
+                  accept={imageTypes}
+                  multiple
+                  hidden
+                  onChange={async (event) => {
+                    const picked = [...(event.currentTarget.files ?? [])];
+                    event.currentTarget.value = "";
+                    if (!picked.length) return;
+                    setUploading(true);
+                    try {
+                      await insertImages(picked);
+                    } catch (error) {
+                      notice(message(error));
+                    } finally {
+                      setUploading(false);
+                    }
+                  }}
+                />
+                <button type="button" className="btn small" disabled={uploading} onClick={() => file.current?.click()}>
+                  <Icon name="plus" />
+                  {uploading ? "올리는 중…" : "이미지 넣기"}
+                </button>
+              </>
+            )}
             <button
               type="button"
               className="btn small"
@@ -636,8 +667,8 @@ function ManualEditor({
               className="btn small primary"
               disabled={uploading}
               run={async () => {
-                onSaved(await api<ManualData>("/manual", "PUT", { content: text }));
-                notice("매뉴얼을 저장했어요.");
+                onSaved(await api<ManualData>(doc.path, "PUT", { content: text }));
+                notice(`${doc.name}을 저장했어요.`);
               }}
             >
               저장
@@ -645,17 +676,17 @@ function ManualEditor({
           </>
         }
       />
-      <Card className="mnl-editor" label="매뉴얼 원문과 미리보기">
+      <Card className="mnl-editor" label={`${doc.name} 원문과 미리보기`}>
         <p className="mnl-hint mnl-syntax">
           # 장 · ## 절 · ### 소제목 · 제목 끝 ★ = 중요도 · - 목록 · 1. 번호 목록 · &gt; 안내 · &gt; ⚠ 경고 · | 표 | · **굵게** · [링크](https://…)
         </p>
         <div className="mnl-editor-grid">
           <label className="mnl-editor-source">
-            <span className="sr-only">매뉴얼 원문</span>
+            <span className="sr-only">{doc.name} 원문</span>
             <textarea ref={area} value={text} spellCheck={false} onChange={(event) => setText(event.target.value)} />
           </label>
           <div className="mnl-doc mnl-preview" aria-label="미리보기">
-            <ManualDocument blocks={preview} />
+            <ManualDocument blocks={preview} hash={doc.hash} />
           </div>
         </div>
       </Card>

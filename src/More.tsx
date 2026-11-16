@@ -30,6 +30,7 @@ export default function More({ user, open, dialog, logout }: {
         <ListRow icon="people" title="인적관리" sub="근무자·선생님 연락처" right={<Chevron />} onClick={() => open("people")} />
       )}
       <ListRow icon="book" title="매뉴얼" sub="근무 규칙과 업무 방법" right={<Chevron />} onClick={() => open("manual")} />
+      <ListRow icon="phone" title="규정" sub="이용 규정과 내선번호" right={<Chevron />} onClick={() => open("regulations")} />
       <Divider />
       <ListHeader title="계정·도움" />
       {!viewer && (
