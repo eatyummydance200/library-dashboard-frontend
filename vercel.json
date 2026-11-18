@@ -17,7 +17,7 @@
     },
     {
       "source": "/library-dashboard/api/:path*",
-      "destination": "https://homeserver.tail72d30b.ts.net/library-dashboard/api/:path*"
+      "destination": "https://api.library-dashboard.cloud/library-dashboard/api/:path*"
     },
     {
       "source": "/library-dashboard/assets/:path*",

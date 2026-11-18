@@ -59,7 +59,7 @@ npm run preview
 
 상위 폴더의 파일을 포함하는 옵션은 필요 없다. `vercel.json`은 루트에서 `/login`으로 이동하고 `/login`과 `/library-dashboard/*` 화면 경로를 `index.html`로 연결한다. 번들 자산은 `/assets/*`를 사용하며 기존 `/library-dashboard/assets/*` 경로도 유지한다.
 
-`/library-dashboard/api/*`는 `https://eatyummydance200.tail72d30b.ts.net/library-dashboard/api/*`로 전달한다. API 응답은 캐시하지 않으며 브라우저는 프론트 출처의 HttpOnly·Secure·SameSite 세션 쿠키와 CSRF 헤더를 사용한다. 별도 CORS 허용은 필요 없다. API 서버 주소가 바뀌면 `vercel.json`의 프록시 대상도 갱신한다.
+`/library-dashboard/api/*`는 Cloudflare Tunnel 주소인 `https://api.library-dashboard.cloud/library-dashboard/api/*`로 전달한다. API 응답은 캐시하지 않으며 브라우저는 프론트 출처의 HttpOnly·Secure·SameSite 세션 쿠키와 CSRF 헤더를 사용한다. 별도 CORS 허용은 필요 없다. API 서버 주소가 바뀌면 `vercel.json`의 프록시 대상도 갱신한다.
 
 프론트 저장소를 먼저 연결·검증한 뒤 API 전용 백엔드를 배포한다. 백엔드는 이전 HTML 로그인·업무 화면을 제공하지 않으므로 사용자는 프론트 주소로 접속한다. Java API 서버와 기존 공개 API 주소는 계속 가동되어야 한다.
 
