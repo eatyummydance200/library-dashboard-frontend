@@ -8,13 +8,14 @@
 .page-top-upper .week-controls strong{font-size:15px;font-weight:500;color:var(--text-3)}
 
 /* ---------- 이슈 행 (TDS List Row 모양 + ⋯ 메뉴 + 원형 체크) ---------- */
-.issue-row{display:flex;align-items:center;gap:2px;min-height:64px;padding:4px 12px 4px 24px}
+.issue-row{display:flex;flex-wrap:wrap;align-items:center;gap:2px;min-height:64px;padding:4px 12px 4px 24px}
 .issue-row-main{display:flex;align-items:center;gap:14px;flex:1;min-width:0;padding:8px 0;border:0;border-radius:12px;background:none;text-align:left;color:inherit;font:inherit;cursor:pointer}
 .issue-row .list-row-icon{width:36px;height:36px;border-radius:12px;background:var(--grey100);color:var(--grey500)}
 .issue-row .list-row-icon svg{width:20px;height:20px}
 .issue-row .list-row-sub{font-variant-numeric:tabular-nums}
 .issue-row.is-done .issue-title{color:var(--text-2)}
-.issue-body:not([hidden]){display:block;margin-top:6px;font-size:15px;line-height:1.6;color:var(--text-2);white-space:pre-wrap;overflow-wrap:anywhere}
+.issue-body:not([hidden]){order:1;flex-basis:100%;margin:-4px 0 0;padding:0 8px 12px 0;font-size:15px;line-height:1.6;color:var(--text-2);white-space:pre-wrap;overflow-wrap:anywhere}
+.issue-row-main:has(.list-row-icon)~.issue-body{padding-left:50px}
 .issue-check{display:flex;align-items:center;justify-content:center;flex-shrink:0;width:var(--tap);height:var(--tap);cursor:pointer}
 .issue-menu summary{display:grid;place-items:center;width:var(--tap);height:var(--tap);border-radius:12px;color:var(--grey400);font-size:20px;line-height:1}
 .issue-menu[open] summary{background:var(--grey100);color:var(--grey700)}
