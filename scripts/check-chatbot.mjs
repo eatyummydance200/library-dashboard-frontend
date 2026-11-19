@@ -59,7 +59,7 @@ try {
   }));
   const idle = panel();
   assert.match(tags(idle, "aside")[0], /role="dialog"/);
-  assert.match(tags(idle, "aside")[0], /aria-label="전화 응대 도우미"/);
+  assert.match(tags(idle, "aside")[0], /aria-label="AI에게 물어보기"/);
   assert.doesNotMatch(tags(idle, "aside")[0], /aria-modal/);
   assert.match(idle, /aria-label="닫기"/);
   const [question] = tags(idle, "textarea");
@@ -69,8 +69,8 @@ try {
   // 첫 인사는 프로필과 함께 항상 보이고, 보내기 버튼은 입력이 있을 때만 켜진다
   const empty = panel();
   assert.match(empty, /chatbot-avatar/);
-  assert.match(empty, /응대 도우미/);
-  assert.match(empty, /전화 응대를 도와드릴게요/);
+  assert.match(empty, /AI 도우미/);
+  assert.match(empty, /도서관 규정에 대해 궁금한 게 있으면 물어보세요/);
   assert.match(tags(empty, "button").find((tag) => /aria-label="보내기"/.test(tag)), /disabled=""/);
   assert.doesNotMatch(tags(panel({ draft: "상호대차?" }), "button").find((tag) => /aria-label="보내기"/.test(tag)), /disabled=""/);
   assert.match(tags(panel({ draft: "   " }), "button").find((tag) => /aria-label="보내기"/.test(tag)), /disabled=""/);

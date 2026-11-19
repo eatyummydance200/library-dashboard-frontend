@@ -37,7 +37,7 @@ const primary = [
 const secondary = [
   ["people", "인적관리", "people"],
   ["manual", "매뉴얼", "book"],
-  ["regulations", "규정", "phone"],
+  ["regulations", "규정", "check-circle"],
 ] as const;
 export type View = (typeof primary)[number][0] | (typeof secondary)[number][0] | "more";
 type IconName = keyof typeof icons;
@@ -350,6 +350,8 @@ function Workspace({ user, onLogout }: { user: User; onLogout: () => void }) {
             aria={`내 계정 (${user.username})`}
             onClick={() => setDialog("account")}
           />
+          {/* 메뉴가 아니라 도움 요청이라 메뉴 줄과 다른 모양으로 계정 밑에 둔다 */}
+          {!viewer && <button type="button" className="help-link" onClick={() => setDialog("inquiry")}>개발자에게 문의하기<Icon name="chevron" /></button>}
         </nav>
       )}
       <main className="shell-main">
@@ -420,11 +422,6 @@ function Workspace({ user, onLogout }: { user: User; onLogout: () => void }) {
         </Modal>
       )}
       {!viewer && <Chatbot />}
-      {!viewer && (
-        <button type="button" className="inquiry-fab" aria-label="개발자에게 문의" onClick={() => setDialog("inquiry")}>
-          <Icon name="headset" />
-        </button>
-      )}
       {dialog === "inquiry" && !viewer && <InquiryDialog onClose={() => setDialog(null)} />}
       {dialog === "password" && !viewer && (
         <Modal title="비밀번호 변경" onClose={() => setDialog(null)}>
