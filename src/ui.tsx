@@ -28,7 +28,7 @@ export function useMobile() {
   );
 }
 
-export const NoticeContext = createContext<(value: string) => void>(() => {});
+export const NoticeContext = createContext<(value: string, undo?: () => Promise<void>) => void>(() => {});
 export const useNotice = () => useContext(NoticeContext);
 // "관리" 메뉴 자리. 화면 제목(PageTop)이 AdminOutlet으로 자기 안의 빈 자리를 등록하고,
 // 화면이 어디서든 AdminMenu를 그리면 그 자리(AdminSlot)로 옮겨진다(없으면 제자리).

@@ -13,7 +13,7 @@
   --safe-bottom:env(safe-area-inset-bottom,0px);
   --shadow:none;
   --grey50:#f9fafb;--grey100:#f2f4f6;--grey200:#e5e8eb;--grey300:#d1d6db;--grey400:#b0b8c1;--grey500:#8b95a1;--grey600:#6b7684;--grey700:#4e5968;--grey800:#333d4b;--grey900:#191f28;
-  --blue50:#e8f3ff;--blue100:#c9e2ff;--blue500:#3182f6;--blue600:#2272eb;--blue700:#1b64da;
+  --blue50:#e8f3ff;--blue100:#c9e2ff;--blue300:#64a8ff;--blue500:#3182f6;--blue600:#2272eb;--blue700:#1b64da;
   --orange50:#fff3e0;--orange100:#ffe0b0;--orange400:#ffa927;
   --red50:#ffeeee;--red600:#e42939;--green50:#f0faf6;--green700:#029359;--teal50:#edf8f8;--teal900:#076565;--purple50:#f9f0fc;--purple700:#8222a2;--yellow50:#fff9e7;
   --text-1:#191f28;--text-2:#4e5968;--text-3:#6b7684;
