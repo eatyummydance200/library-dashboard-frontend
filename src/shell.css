@@ -21,6 +21,13 @@
 .side-row.is-quiet .side-label{font-weight:500;color:var(--text-2)}
 .side-badge{min-width:22px;height:22px;padding:0 7px;border-radius:11px;background:var(--red600);color:#fff;font-size:12px;font-weight:700;line-height:22px;text-align:center}
 .side-header{padding:16px 24px 4px;font-size:13px;font-weight:500;color:var(--text-2)}
+/* 개발자에게 문의: 계정 바로 밑의 회색 텍스트 링크(토스식 "~하기 ›"). 메뉴 줄과 다른 모양으로 따로 보이게 한다 */
+.help-link{display:inline-flex;align-items:center;gap:2px;align-self:flex-start;min-height:36px;padding:6px 20px;border:0;border-radius:10px;background:none;color:var(--grey600);font:inherit;font-size:14px;font-weight:500;cursor:pointer;transition:transform .15s var(--ease),background-color .2s,color .2s}
+.help-link svg{width:14px;height:14px;color:var(--grey400)}
+@media(hover:hover){.help-link:hover{background:#ffffff8c;color:var(--grey800)}}
+.help-link:active{transform:scale(.97)}
+.help-link:focus-visible{outline:none;box-shadow:0 0 0 1px #8ac0ff,0 0 0 3px #b8d9ff}
+.more .help-link{margin:0 0 8px}
 .side-divider{width:100%;margin:16px 0 8px;border:0;border-top:1px solid var(--grey200)}
 .side-row:focus-visible{outline-offset:-3px}
 @media(hover:hover){.side-row:not(.is-current):hover{background:#ffffff8c}}
@@ -120,14 +127,8 @@ body.login-page{background:#fff}
 .chat-write{width:100%;min-height:52px;font-size:16px}
 @media(hover:hover){.inquiry-fab:hover{background:var(--blue600)}}
 @media(max-width:899px){.inquiry-fab{right:16px;bottom:calc(var(--tabbar) + 16px + var(--safe-bottom));width:52px;height:52px}}
-@media(min-width:900px){
-  /* 화면 가운데가 아니라 버튼 자리 위로 뜬다 */
-  .dialog.inquiry-chat{width:400px;margin:auto 24px 24px auto;max-height:calc(100dvh - 48px)}
-  .dialog.inquiry-chat::backdrop{background:#0000001f}
-}
 
-/* ---------- 전화 응대 도우미: 문의 버튼 바로 위 버튼 + 비모달 패널(데스크톱 우하단, 모바일 하단 시트) ---------- */
-.inquiry-fab.is-chatbot{bottom:92px}
+/* ---------- AI에게 물어보기(규정 챗봇): 우하단 버튼 + 비모달 패널(데스크톱 우하단, 모바일 하단 시트) ---------- */
 .chatbot{position:fixed;z-index:40;right:24px;bottom:24px;display:flex;flex-direction:column;gap:12px;width:400px;height:min(680px,calc(100dvh - 48px));padding:20px 20px 16px;border-radius:24px;background:#fff;box-shadow:0 12px 40px #102b5733;animation:dialog-in .22s var(--ease)}
 .chatbot .dialog-head{margin:0}
 .chatbot .inline-error{margin:0}
@@ -172,7 +173,6 @@ body.login-page{background:#fff}
 .chatbot-send svg{width:24px;height:24px}
 .qlog-answer{white-space:pre-line}
 @media(max-width:899px){
-  .inquiry-fab.is-chatbot{bottom:calc(var(--tabbar) + 80px + var(--safe-bottom))}
   .chatbot{left:0;right:0;bottom:0;width:auto;height:85dvh;padding:16px 16px calc(16px + var(--safe-bottom));border-radius:24px 24px 0 0}
 }
 

@@ -46,12 +46,12 @@ export default function Chatbot() {
       <button
         ref={fab}
         type="button"
-        className="inquiry-fab is-chatbot"
-        aria-label="전화 응대 도우미"
+        className="inquiry-fab"
+        aria-label="AI에게 물어보기"
         aria-expanded={open}
         onClick={() => setOpen(!open)}
       >
-        <Icon name="phone" />
+        <Icon name="sparkles" />
       </button>
       {open && (
         <ChatPanel
@@ -97,7 +97,7 @@ export function ChatPanel({ turns, draft, setDraft, busy, error, onAsk, onFlagge
     <aside
       className="chatbot"
       role="dialog"
-      aria-label="전화 응대 도우미"
+      aria-label="AI에게 물어보기"
       onKeyDown={(event) => {
         if (event.key === "Escape") {
           event.stopPropagation();
@@ -106,7 +106,7 @@ export function ChatPanel({ turns, draft, setDraft, busy, error, onAsk, onFlagge
       }}
     >
       <div className="dialog-head">
-        <h2>전화 응대 도우미</h2>
+        <h2>AI에게 물어보기</h2>
         <button type="button" onClick={onClose} aria-label="닫기">
           ×
         </button>
@@ -223,7 +223,7 @@ export function AnswerCard({ turn, onFlagged }: { turn: Turn; onFlagged: (flagge
   );
 }
 
-export const GREETING = "전화 응대를 도와드릴게요. 궁금한 걸 물어보면 규정에 맞춰 답해 드려요.";
+export const GREETING = "도서관 규정에 대해 궁금한 게 있으면 물어보세요. 규정에 맞춰 답해 드릴게요.";
 
 // 챗봇 쪽 말풍선: 왼쪽 프로필 + 이름 + 내용
 function Bot({ children }: { children: ReactNode }) {
@@ -231,7 +231,7 @@ function Bot({ children }: { children: ReactNode }) {
     <div className="chatbot-bot">
       <img className="chatbot-avatar" src={avatar} alt="" width={36} height={36} />
       <div className="chatbot-bot-body">
-        <span className="chatbot-name">응대 도우미</span>
+        <span className="chatbot-name">AI 도우미</span>
         {children}
       </div>
     </div>
