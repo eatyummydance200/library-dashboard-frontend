@@ -278,9 +278,10 @@ function IssueItem({
               <time dateTime={issue.created_at}>{createdLabel(issue.created_at)}</time>
             ) : shortDay(issue.day)}
           </span>
-          <span className="issue-body" hidden={!open}>{issue.body}</span>
         </span>
       </button>
+      {/* 본문은 버튼 밖 아래 줄에 펼친다. 버튼 안에 두면 행이 길어져 아이콘·메뉴·체크가 가운데로 내려간다 */}
+      <p className="issue-body" hidden={!open}>{issue.body}</p>
       {(editable || deletable) && (
         <IssueMenu
           onEdit={editable ? () => setEditing(true) : undefined}
