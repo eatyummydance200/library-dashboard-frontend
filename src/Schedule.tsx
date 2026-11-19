@@ -83,6 +83,7 @@ function layout(entries: Shift[]) {
   return { entries: result, lanes };
 }
 const roleName = (shift: Shift) => (shift.role === "desk" ? "데스크" : "대기");
+const fields = ({ staff_id, day, start, end, role }: Shift) => ({ staff_id, day, start, end, role });
 const NONE = new Set<number>();
 export default function Schedule({ user }: { user: User }) {
   const [week, setWeek] = useState(monday());
@@ -127,6 +128,11 @@ export default function Schedule({ user }: { user: User }) {
     await savedOriginal();
     notice("확정된 근무 시간표를 저장했어요.");
   }
+  // 되돌리기: 끌기·수정 전의 근무 값으로 다시 저장한다.
+  const restore = (shift: Shift) => async () => {
+    await api(`/shifts/${shift.id}`, "PUT", fields(shift));
+    await data.refresh();
+  };
   const visibleShifts = data.data?.shifts.map((shift) => shift.id === adjust?.id ? { ...shift, day: adjust.day, start: adjust.start, end: adjust.end } : shift) ?? [];
   // Drag a handle to resize a shift. Bounds are checked here so an invalid length can't be produced;
   // the server still validates on save. The new length shows immediately and reverts if saving fails.
@@ -156,7 +162,7 @@ export default function Schedule({ user }: { user: User }) {
       try {
         await api(`/shifts/${shift.id}`, "PUT", { staff_id: shift.staff_id, day: shift.day, start: next.start, end: next.end, role: shift.role });
         await data.refresh();
-        notice(`근무 시간을 ${time(next.start)}–${time(next.end)}로 바꿨어요.`);
+        notice(`근무 시간을 ${time(next.start)}–${time(next.end)}로 바꿨어요.`, restore(shift));
       } catch (error) {
         notice(error instanceof Error ? error.message : "근무를 저장하지 못했어요.");
       } finally {
@@ -209,7 +215,7 @@ export default function Schedule({ user }: { user: User }) {
       try {
         await api(`/shifts/${shift.id}`, "PUT", { staff_id: shift.staff_id, day: next.day, start: next.start, end: next.end, role: shift.role });
         await data.refresh();
-        notice(`근무를 ${days[dates.indexOf(next.day)]}요일 ${time(next.start)}–${time(next.end)}로 옮겼어요.`);
+        notice(`근무를 ${days[dates.indexOf(next.day)]}요일 ${time(next.start)}–${time(next.end)}로 옮겼어요.`, restore(shift));
       } catch (error) {
         notice(error instanceof Error ? error.message : "근무를 저장하지 못했어요.");
       } finally {
@@ -642,6 +648,9 @@ function ShiftEditor({
   onSaved: () => Promise<void>;
 }) {
   const notice = useNotice();
+  // 되돌리기: 확정표는 연 시점의 표 전체를, 주간표 수정은 수정 전 값을 다시 저장한다. 주간표 새 근무 추가는 새 id를 몰라 되돌리기가 없다.
+  const undo = (save: () => Promise<unknown>) => async () => { await save(); await onSaved(); };
+  const undoConfirmed = undo(() => api("/schedule/original", "PUT", { shifts: week.shifts.map(toConfirmed) }));
   return (
     <Modal title={confirmed ? (shift ? "확정 근무 수정" : "확정 근무 추가") : shift ? "근무 수정" : "근무 추가"} onClose={onClose}>
       <Form
@@ -664,7 +673,7 @@ function ShiftEditor({
           }
           onClose();
           await onSaved();
-          notice("근무를 저장했어요.");
+          notice("근무를 저장했어요.", confirmed ? undoConfirmed : shift && undo(() => api(`/shifts/${shift.id}`, "PUT", fields(shift))));
         }}
       >
         {confirmed ? (
@@ -712,7 +721,7 @@ function ShiftEditor({
               }
               onClose();
               await onSaved();
-              notice("근무를 삭제했어요.");
+              notice("근무를 삭제했어요.", confirmed ? undoConfirmed : undo(() => api("/shifts", "POST", fields(shift))));
             }}
           >
             삭제

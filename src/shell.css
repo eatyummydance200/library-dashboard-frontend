@@ -179,6 +179,15 @@ body.login-page{background:#fff}
 /* ---------- 모션: 알림은 아래에서 올라오고, 대화상자는 살짝 커지며(모바일은 아래에서) 나타난다 ---------- */
 .toast{animation:toast-in .25s cubic-bezier(.2,.8,.2,1)}
 @keyframes toast-in{from{opacity:0;transform:translate(-50%,12px)}}
+/* 되돌리기 알림: 체크 + 문구 + 남은 시간 링이 줄어드는 되돌리기 버튼 */
+.toast.has-undo{display:flex;align-items:center;gap:10px;padding:8px 8px 8px 18px;border-radius:999px}
+.toast-check{display:flex;color:var(--blue300)}
+.toast-undo{position:relative;display:grid;place-items:center;flex:none;width:40px;height:40px;padding:0;border:0;border-radius:50%;background:none;color:var(--blue300);cursor:pointer}
+.toast-undo:hover{background:#ffffff1a}
+.toast-undo svg:not(.toast-ring){width:18px;height:18px}
+.toast-ring{position:absolute;inset:3px;width:34px;height:34px;transform:rotate(-90deg) scaleY(-1);stroke:var(--blue300);stroke-width:2.6;stroke-dasharray:100}
+.toast-ring circle{animation:toast-ring 6s linear forwards}
+@keyframes toast-ring{to{stroke-dashoffset:100}}
 .dialog[open]{animation:dialog-in .22s cubic-bezier(.2,.8,.2,1)}
 @keyframes dialog-in{from{opacity:0;transform:translateY(24px)}}
 @media(min-width:900px){@keyframes dialog-in{from{opacity:0;transform:scale(.96)}}}

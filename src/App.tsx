@@ -50,12 +50,21 @@ interface Session {
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const sessionCheck = useRef<AbortController | null>(null);
-  const [notice, setNotice] = useState("");
+  const [notice, setNotice] = useState<{ id: number; text: string; undo?: () => Promise<void> } | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  function toast(text: string) {
+  // undo가 있으면 되돌리기 버튼을 6초 동안 보여준다(버튼 둘레의 링이 남은 시간).
+  function toast(text: string, undo?: () => Promise<void>) {
     clearTimeout(timer.current);
-    setNotice(text);
-    timer.current = setTimeout(() => setNotice(""), 3500);
+    setNotice({ id: Date.now(), text, undo });
+    timer.current = setTimeout(() => setNotice(null), undo ? 6000 : 3500);
+  }
+  function runUndo(undo: () => Promise<void>) {
+    clearTimeout(timer.current);
+    setNotice(null);
+    undo().then(
+      () => toast("되돌렸어요."),
+      (error: unknown) => toast(error instanceof Error ? error.message : "되돌리지 못했어요."),
+    );
   }
   useEffect(() => {
     const controller = new AbortController();
@@ -103,8 +112,15 @@ export default function App() {
         />
       )}
       {notice && (
-        <div className="toast" role="status">
-          {notice}
+        <div key={notice.id} className={`toast${notice.undo ? " has-undo" : ""}`} role="status">
+          {notice.undo && <span className="toast-check"><Icon name="check" /></span>}
+          {notice.text}
+          {notice.undo && (
+            <button type="button" className="toast-undo" aria-label="되돌리기" onClick={() => runUndo(notice.undo!)}>
+              <svg className="toast-ring" viewBox="0 0 36 36" aria-hidden="true"><circle cx="18" cy="18" r="16" pathLength="100" /></svg>
+              <Icon name="undo" />
+            </button>
+          )}
         </div>
       )}
     </NoticeContext.Provider>
