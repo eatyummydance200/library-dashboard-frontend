@@ -62,16 +62,13 @@ export default function Tagging({ user, month: value, onLock }: { user: User; mo
       <ProgressCard label={`${month}월 태깅`} unit="명" done={progress.done} total={progress.total} />
       <section className="tds-card monthly-list" aria-label={`${year}년 ${month}월 근무자별 태깅 완료 여부`}>
         <ListHeader level={3} title="근무자" tail={!admin && "조회만 할 수 있어요"} />
+        <div className="tagging-grid">
         {data.staff.map((person) => {
           const tags = data.tags.filter((tag) => tag.staff_id === person.id && tag.completed);
           const completed = tags.some((tag) => tag.month === month);
           const saving = pending.includes(`${person.id}/${year}/${month}`);
           return (
             <label key={person.id} className="check-row">
-              <span>
-                {person.name}
-                {!person.active && <Badge color="grey">비활성</Badge>}
-              </span>
               <input
                 type="checkbox"
                 className="tds-check"
@@ -82,9 +79,14 @@ export default function Tagging({ user, month: value, onLock }: { user: User; mo
                 aria-label={`${person.name} ${year}년 ${month}월 태깅 완료`}
                 onChange={() => void toggle(person.id, !completed)}
               />
+              <span>
+                {person.name}
+                {!person.active && <Badge color="grey">비활성</Badge>}
+              </span>
             </label>
           );
         })}
+        </div>
         {!data.staff.length && <p className="issue-empty">등록된 근무자가 없어요.</p>}
       </section>
     </div>

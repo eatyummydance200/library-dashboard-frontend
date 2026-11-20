@@ -87,6 +87,9 @@
 .check-row:has([aria-busy=true]){opacity:.6}
 .check-row>span{display:flex;align-items:center;flex-wrap:wrap;gap:0 8px;min-width:0;overflow-wrap:anywhere}
 .check-row small{font-size:13px;color:var(--text-3)}
+/* 태깅: 체크를 이름 앞에 두고 넓은 화면에서는 여러 열로 (이름과 체크가 멀어지지 않게) */
+.tagging-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));padding:4px 8px 8px}
+.tagging-grid .check-row{justify-content:flex-start;padding:0 16px}
 
 /* 청소 */
 .clean-result{overflow:hidden}
@@ -127,6 +130,7 @@
   .monthly-progress{padding:12px 20px 20px}
   .monthly-group .list-header,.monthly-list .list-header{padding:16px 20px 4px}
   .check-row{padding:0 20px;font-size:16px}
+  .tagging-grid{padding:0 4px 8px}
   .clean-history,.clean-history-empty{padding:8px 20px 12px}
   .monthly-note{padding:16px 20px}
 }
